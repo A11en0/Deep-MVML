@@ -13,7 +13,7 @@ class Args:
         self.model_save_epoch = 5
         self.model_save_dir = 'model_save_dir'
         self.seed = 8
-        self.cuda = True
+        self.cuda = False
 
         self.gamma = 0.1  # [0.001, 0.01, 0.1] 1
         self.alpha = 1  # [0.1, 1, 10] 1
@@ -31,13 +31,13 @@ class Args:
         self.lr = 1e-3  # 5e-3
         self.partial_rate = 0
 
-        self.common_feature_dim = 256
+        self.common_feature_dim = 512
         self.latent_dim = 64
         self.keep_prob = 0.5
         self.scale_coeff = 1.0
 
         self.coef_ml = 1.0
-        self.coef_kl = 1.1
+        self.coef_kl = 0.0
 
 WEIGHT_DECAY = 1e-5
 

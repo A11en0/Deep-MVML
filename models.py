@@ -145,16 +145,17 @@ class ModelEmbedding(nn.Module):
 
         self.common_feature_dim = args.common_feature_dim
 
-        # self.final_feature_num = (view_count + 1) * common_feature_dim
+        view_count = len(self.view_blocks)
+        self.final_feature_num = (view_count + 1) * common_feature_dim
         self.fc_comm_extract = nn.Linear(common_feature_dim, common_feature_dim)
-        self.fc_predictor = nn.Linear(common_feature_dim, label_dim)
+        # self.fc_predictor = nn.Linear(common_feature_dim, label_dim)
         self.device = device
 
         # self.label_encoder = LabelEmbedding(label_dim, 64, common_feature_dim)
         # initialization
 
         # feature layers
-        self.fx1 = nn.Linear(args.common_feature_dim, 256)
+        self.fx1 = nn.Linear(self.final_feature_num, 256)
         self.fx2 = nn.Linear(256, 512)
         self.fx3 = nn.Linear(512, 256)
         self.fx_mu = nn.Linear(256, args.latent_dim)
@@ -162,20 +163,24 @@ class ModelEmbedding(nn.Module):
         self.fx_mu_batchnorm = nn.BatchNorm1d(args.latent_dim)
         self.fx_sigma_batchnorm = nn.BatchNorm1d(args.latent_dim)
 
-        self.fd_x1 = nn.Linear(args.common_feature_dim+args.latent_dim, 256)
+        self.fd_x1 = nn.Linear(self.final_feature_num+args.latent_dim, 256)
         self.fd_x2 = nn.Linear(256, 512)
         self.feat_mp_mu = nn.Linear(512, label_dim)
 
         # label layers
-        self.fe1 = nn.Linear(args.common_feature_dim+label_dim, 512)
+        self.fe1 = nn.Linear(self.final_feature_num+label_dim, 512)
         self.fe2 = nn.Linear(512, 256)
         self.fe_mu = nn.Linear(256, args.latent_dim)
         self.fe_logvar = nn.Linear(256, args.latent_dim)
         self.fe_mu_batchnorm = nn.BatchNorm1d(args.latent_dim, affine=False)
         self.fe_sigma_batchnorm = nn.BatchNorm1d(args.latent_dim, affine=False)
 
-        self.fd1 = self.fd_x1
-        self.fd2 = self.fd_x2
+        # share ?
+        self.fd1 = nn.Linear(self.final_feature_num+args.latent_dim, 256)
+        self.fd2 = nn.Linear(256, 512)
+        # self.feat_mp_mu = nn.Linear(512, label_dim)
+        # self.fd1 = self.fd_x1
+        # self.fd2 = self.fd_x2
         self.label_mp_mu = nn.Linear(512, label_dim)
 
         # things they share
@@ -236,14 +241,34 @@ class ModelEmbedding(nn.Module):
     def forward(self, feature, label):
         # view-specific feature extracts
         view_features_dict = self._extract_view_features(feature)
-        feature_embedding = torch.zeros(feature[0].shape[0], self.common_feature_dim).to(self.device)
+        feature_embedding = torch.zeros(feature[0].shape[0], self.final_feature_num).to(self.device)
+
+        # features_embedding = torch.zeros(feature[0].shape[0], self.final_feature_num).to(self.device)
+        comm_feature = torch.zeros(feature[0].shape[0], self.common_feature_dim).to(self.device)
         view_count = len(self.view_blocks)
 
-        # feature fusing
+        # common feature
         for view_code, view_feature in view_features_dict.items():
+            view_code = int(view_code)
+            feature_embedding[:, view_code * self.common_feature_dim:
+                                 (view_code + 1) * self.common_feature_dim] = view_feature[0]  # view-specific feature
             view_comm_feature = self.fc_comm_extract(view_feature[1])  # common feature
-            feature_embedding += view_comm_feature
-        feature_embedding /= view_count
+            comm_feature += view_comm_feature
+        comm_feature /= view_count
+
+        feature_embedding[:, -self.common_feature_dim:] = comm_feature
+
+        # ...
+        # view-specific feature extracts
+        # view_features_dict = self._extract_view_features(feature)
+        # feature_embedding = torch.zeros(feature[0].shape[0], self.common_feature_dim).to(self.device)
+        # view_count = len(self.view_blocks)
+
+        # feature fusing
+        # for view_code, view_feature in view_features_dict.items():
+        #     view_comm_feature = self.fc_comm_extract(view_feature[1])  # common feature
+        #     feature_embedding += view_comm_feature
+        # feature_embedding /= view_count
 
         label_out, label_mu, label_logvar = self.label_forward(label, feature_embedding)
         feat_out, feat_mu, feat_logvar = self.feat_forward(feature_embedding)

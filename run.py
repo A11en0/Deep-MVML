@@ -12,7 +12,7 @@ from train import train, test
 from utils.common_tools import split_data_set_by_idx, ViewsDataset, load_mat_data_v1, init_random_seed
 
 
-def run(args):
+def run(args, save_name):
     features, labels, idx_list = load_mat_data_v1(os.path.join(args.DATA_ROOT, args.DATA_SET_NAME), True)
 
     writer = SummaryWriter()
@@ -81,7 +81,9 @@ def run(args):
                 writer.add_scalar(f"Down/{key}", matrics_vals, epoch)  # log
 
     print("\n------------summary--------------")
-    save_name = f'results/{args.DATA_SET_NAME}_{args.coef_ml}_{args.coef_kl}.txt'
+    if not os.path.exists('results'):
+        os.mkdir('results')
+
     with open(save_name, "w") as f:
         for k, v in avg_metrics.items():
             print("{metric}:\t{value}".format(metric=k, value=v / Fold_numbers))
@@ -91,7 +93,7 @@ def run(args):
     writer.flush()
     writer.close()
 
-def boot(args,):
+def boot(args, save_name):
     print('*' * 30)
     print('ML Loss coefficient:\t', args.coef_ml)
     print('KL loss coefficient:\t', args.coef_kl)
@@ -99,26 +101,49 @@ def boot(args,):
     print('common feature dims:\t', args.common_feature_dim)
     print('optimizer:\t Adam')
     print('*' * 30)
-    run(args)
+
+    if not os.path.exists(save_name):
+        run(args, save_name)
+
 
 if __name__ == '__main__':
     args = Args()
-    # args.DATA_SET_NAME = "yeast.mat"
-    # args.using_lp = True
 
     # setting random seeds
     init_random_seed(args.seed)
 
     device = torch.device("cuda") if args.cuda else torch.device("cpu")
 
-    kl_coef_lists = np.arange(0, 2, 0.1).tolist()
+    kl_coef_lists = [0.0]
+    kl_coef_lists += np.arange(1, 2, 0.1).tolist()
     kl_coef_lists += np.arange(2, 5, 0.5).tolist()
-    ml_coef_lists = np.arange(0, 1, 0.1).tolist()
+    datanames = ['Pascal.mat', 'scene.mat', 'yeast.mat',  'Corel5k.mat', 'emotions.mat', 'Mirflickr.mat', 'Espgame.mat',]
 
-    for kl_coef in kl_coef_lists:
-        for ml_coef in ml_coef_lists:
+    # for kl_coef in kl_coef_lists:
+    #     for ml_coef in ml_coef_lists:
+    #         args.coef_kl = kl_coef
+    #         args.coef_ml = ml_coef
+    #         boot(args)
+
+    # common_feature_dims = [512]
+    # # common_feature_dims = [64, 128, 256, 512]
+    # latents_dims = [64]
+    # # latents_dims = [64, 128, 256, 512]
+    # for lr in [1e-3, ]:
+    #     # for kl_coef in kl_coef_lists:
+    #     for latents_dim in latents_dims:
+    #         for common_feature_dim in common_feature_dims:
+    #             args.lr = lr
+    #             args.common_feature_dim = common_feature_dim
+    #             args.latent_dim = latents_dim
+    #             args.coef_kl = kl_coef
+    #             save_name = f'results/{args.DATA_SET_NAME}_{args.coef_ml}_{args.coef_kl}_{args.lr}_{args.common_feature_dim}_{args.latent_dim}.txt'
+    #             boot(args, save_name)
+
+    for dataname in datanames:
+        for kl_coef in kl_coef_lists:
+            args.DATA_SET_NAME = dataname
             args.coef_kl = kl_coef
-            args.coef_ml = ml_coef
-            boot(args)
-
+            save_name = f'results/{args.DATA_SET_NAME}_{args.coef_ml}_{args.coef_kl}_{args.lr}_{args.common_feature_dim}_{args.latent_dim}.txt'
+            boot(args, save_name)
 

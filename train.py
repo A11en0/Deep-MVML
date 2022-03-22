@@ -127,11 +127,11 @@ class Trainer(object):
                     if args.using_lp:
                         nll_loss_x = F.binary_cross_entropy(feat_out, labels_lp)
                         nll_loss_y = F.binary_cross_entropy(label_out, labels_lp)
-                        _ML_loss = nll_loss_x + nll_loss_y
+                        _ML_loss = 0.5*(nll_loss_x + nll_loss_y)
                     else:
                         nll_loss_x = F.binary_cross_entropy(feat_out, labels)
                         nll_loss_y = F.binary_cross_entropy(label_out, labels)
-                        _ML_loss = nll_loss_x + nll_loss_y
+                        _ML_loss = 0.5*(nll_loss_x + nll_loss_y)
                 else:
                     if args.using_lp:
                         _ML_loss = F.binary_cross_entropy(outputs, labels_lp)
