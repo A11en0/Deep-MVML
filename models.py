@@ -163,32 +163,39 @@ class ModelEmbedding(nn.Module):
         self.fx_mu_batchnorm = nn.BatchNorm1d(args.latent_dim)
         self.fx_sigma_batchnorm = nn.BatchNorm1d(args.latent_dim)
 
-        self.fd_x1 = nn.Linear(self.final_feature_num+args.latent_dim, 256)
-        self.fd_x2 = nn.Linear(256, 512)
-        self.feat_mp_mu = nn.Linear(512, label_dim)
+        self.fd_x1 = nn.Linear(self.final_feature_num+args.latent_dim
+                               , 512)
+        self.fd_x2 = nn.Linear(512, args.embedding_dim)
+        self.feat_mp_mu = nn.Linear(args.embedding_dim, label_dim)
+
+        # self.fd_x1 = nn.Linear(input_dim+args.latent_dim, 512)
+        # self.fd_x2 = torch.nn.Sequential(
+        #     nn.Linear(512, self.emb_size)
+        # )
+        # self.feat_mp_mu = nn.Linear(self.emb_size, args.label_dim)
 
         # label layers
-        self.fe1 = nn.Linear(self.final_feature_num+label_dim, 512)
+        self.fe0 = nn.Linear(label_dim, args.embedding_dim)
+
+        self.fe1 = nn.Linear(args.embedding_dim, 512)
         self.fe2 = nn.Linear(512, 256)
         self.fe_mu = nn.Linear(256, args.latent_dim)
         self.fe_logvar = nn.Linear(256, args.latent_dim)
         self.fe_mu_batchnorm = nn.BatchNorm1d(args.latent_dim, affine=False)
         self.fe_sigma_batchnorm = nn.BatchNorm1d(args.latent_dim, affine=False)
 
-        # share ?
-        self.fd1 = nn.Linear(self.final_feature_num+args.latent_dim, 256)
-        self.fd2 = nn.Linear(256, 512)
-        # self.feat_mp_mu = nn.Linear(512, label_dim)
-        # self.fd1 = self.fd_x1
-        # self.fd2 = self.fd_x2
-        self.label_mp_mu = nn.Linear(512, label_dim)
+        # label layers
+        self.fd1 = self.fd_x1
+        self.fd2 = self.fd_x2
+        self.label_mp_mu = self.feat_mp_mu
 
         # things they share
         self.dropout = nn.Dropout(p=args.keep_prob)
         self.scale_coeff = args.scale_coeff
 
     def label_encode(self, x):
-        h1 = self.dropout(F.relu(self.fe1(x)))
+        h0 = self.dropout(F.relu(self.fe0(x)))
+        h1 = self.dropout(F.relu(self.fe1(h0)))
         h2 = self.dropout(F.relu(self.fe2(h1)))
         mu = self.fe_mu(h2) * self.scale_coeff
         logvar = self.fe_logvar(h2) * self.scale_coeff
@@ -215,16 +222,20 @@ class ModelEmbedding(nn.Module):
     def label_decode(self, z):
         h3 = F.relu(self.fd1(z))
         h4 = F.relu(self.fd2(h3))
-        return torch.sigmoid(self.label_mp_mu(h4))
+        h5 = F.normalize(h4, dim=1)
+        return h5
+        # return torch.sigmoid(self.label_mp_mu(h4))
 
     def feat_decode(self, z):
         h4 = F.relu(self.fd_x1(z))
         h5 = F.relu(self.fd_x2(h4))
-        return torch.sigmoid(self.feat_mp_mu(h5))
+        h6 = F.normalize(h5, dim=1)
+        return h6
+        # return torch.sigmoid(self.feat_mp_mu(h5))
 
     def label_forward(self, label, feat):
-        x = torch.cat((feat, label), 1)
-        mu, logvar = self.label_encode(x)
+        # x = torch.cat((feat, label), 1)
+        mu, logvar = self.label_encode(label)
         mu = self.fe_mu_batchnorm(mu)
         logvar = self.fe_sigma_batchnorm(mu)
         z = self.label_reparameterize(mu, logvar)
@@ -270,8 +281,13 @@ class ModelEmbedding(nn.Module):
         #     feature_embedding += view_comm_feature
         # feature_embedding /= view_count
 
-        label_out, label_mu, label_logvar = self.label_forward(label, feature_embedding)
-        feat_out, feat_mu, feat_logvar = self.feat_forward(feature_embedding)
+        label_emb, label_mu, label_logvar = self.label_forward(label, feature_embedding)
+        feat_emb, feat_mu, feat_logvar = self.feat_forward(feature_embedding)
+        embs = self.fe0.weight
+
+        label_out = torch.matmul(label_emb, embs).sigmoid()
+        feat_out = torch.matmul(feat_emb, embs).sigmoid()
+
         return label_out, label_mu, label_logvar, feat_out, feat_mu, feat_logvar
 
     def _extract_view_features(self, x):

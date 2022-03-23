@@ -6,8 +6,8 @@ TEST_SPLIT_INDEX = 1
 class Args:
     def __init__(self):
         self.DATA_ROOT = './datasets'
-        self.DATA_SET_NAME = 'Pascal.mat'
-        self.epoch = 200
+        self.DATA_SET_NAME = 'emotions.mat'
+        self.epoch = 25
         self.show_epoch = 1
         self.epoch_used_for_final_result = 4
         self.model_save_epoch = 5
@@ -33,6 +33,7 @@ class Args:
 
         self.common_feature_dim = 512
         self.latent_dim = 64
+        self.embedding_dim = 512  # 极其重要
         self.keep_prob = 0.5
         self.scale_coeff = 1.0
 

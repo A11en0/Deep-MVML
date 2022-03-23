@@ -115,10 +115,12 @@ if __name__ == '__main__':
     device = torch.device("cuda") if args.cuda else torch.device("cpu")
 
     kl_coef_lists = [0.0]
-    kl_coef_lists += np.arange(1, 2, 0.1).tolist()
-    kl_coef_lists += np.arange(2, 5, 0.5).tolist()
-    datanames = ['Pascal.mat', 'scene.mat', 'yeast.mat',  'Corel5k.mat', 'emotions.mat', 'Mirflickr.mat', 'Espgame.mat',]
+    # kl_coef_lists += np.arange(1, 2, 0.1).tolist()
+    # kl_coef_lists += np.arange(2, 5, 0.5).tolist()
+    # datanames = ['Pascal.mat', 'scene.mat', 'yeast.mat',  'Corel5k.mat', 'emotions.mat', 'Mirflickr.mat', 'Espgame.mat',]
 
+    datanames = ['Corel5k.mat']
+    # kl_coef_lists = [0.0]
     # for kl_coef in kl_coef_lists:
     #     for ml_coef in ml_coef_lists:
     #         args.coef_kl = kl_coef
@@ -140,10 +142,9 @@ if __name__ == '__main__':
     #             save_name = f'results/{args.DATA_SET_NAME}_{args.coef_ml}_{args.coef_kl}_{args.lr}_{args.common_feature_dim}_{args.latent_dim}.txt'
     #             boot(args, save_name)
 
-    for dataname in datanames:
-        for kl_coef in kl_coef_lists:
+    for kl_coef in kl_coef_lists:
+        for dataname in datanames:
             args.DATA_SET_NAME = dataname
             args.coef_kl = kl_coef
-            save_name = f'results/{args.DATA_SET_NAME}_{args.coef_ml}_{args.coef_kl}_{args.lr}_{args.common_feature_dim}_{args.latent_dim}.txt'
+            save_name = f'results/{args.DATA_SET_NAME}_{args.coef_ml}_{args.epoch}_{args.coef_kl}_{args.lr}_{args.common_feature_dim}_{args.latent_dim}.txt'
             boot(args, save_name)
-
