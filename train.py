@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 
 from models import label_propagation, build_graph, estimating_label_correlation_matrix
-from utils.common_loss import compute_loss
+from utils.common_loss import compute_loss, calc_kl_loss
 from utils.ml_metrics import all_metrics, RankingLoss
 
 
@@ -119,7 +119,8 @@ class Trainer(object):
                 elif args.le:
                     # predict / feature embedding / label embedding
                     label_out, label_mu, label_logvar, feat_out, feat_mu, feat_logvar = self.model(inputs, labels)
-                    kl_loss = compute_loss(labels, label_out, label_mu, label_logvar, feat_out, feat_mu, feat_logvar, args)
+                    kl_loss = calc_kl_loss(feat_mu, feat_logvar, label_mu, label_logvar, labels)
+                    # kl_loss = compute_loss(labels, label_out, label_mu, label_logvar, feat_out, feat_mu, feat_logvar, args)
                 else:
                     outputs = self.model(inputs)
 

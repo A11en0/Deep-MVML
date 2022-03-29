@@ -8,9 +8,6 @@ from sklearn import preprocessing
 import torch.nn.functional as F
 
 
-from layer.view_block import LabelEmbedding
-
-
 class Model(nn.Module):
     def __init__(self, view_blocks, common_feature_dim, label_num, device, model_args=None):
         super(Model, self).__init__()
@@ -163,16 +160,9 @@ class ModelEmbedding(nn.Module):
         self.fx_mu_batchnorm = nn.BatchNorm1d(args.latent_dim)
         self.fx_sigma_batchnorm = nn.BatchNorm1d(args.latent_dim)
 
-        self.fd_x1 = nn.Linear(self.final_feature_num+args.latent_dim
-                               , 512)
+        self.fd_x1 = nn.Linear(self.final_feature_num+args.latent_dim, 512)
         self.fd_x2 = nn.Linear(512, args.embedding_dim)
         self.feat_mp_mu = nn.Linear(args.embedding_dim, label_dim)
-
-        # self.fd_x1 = nn.Linear(input_dim+args.latent_dim, 512)
-        # self.fd_x2 = torch.nn.Sequential(
-        #     nn.Linear(512, self.emb_size)
-        # )
-        # self.feat_mp_mu = nn.Linear(self.emb_size, args.label_dim)
 
         # label layers
         self.fe0 = nn.Linear(label_dim, args.embedding_dim)
@@ -181,17 +171,25 @@ class ModelEmbedding(nn.Module):
         self.fe2 = nn.Linear(512, 256)
         self.fe_mu = nn.Linear(256, args.latent_dim)
         self.fe_logvar = nn.Linear(256, args.latent_dim)
-        self.fe_mu_batchnorm = nn.BatchNorm1d(args.latent_dim, affine=False)
-        self.fe_sigma_batchnorm = nn.BatchNorm1d(args.latent_dim, affine=False)
+        self.fe_mu_batchnorm = nn.BatchNorm1d(args.latent_dim)
+        self.fe_sigma_batchnorm = nn.BatchNorm1d(args.latent_dim)
 
         # label layers
-        self.fd1 = self.fd_x1
-        self.fd2 = self.fd_x2
+        self.fd1 = nn.Linear(self.final_feature_num+args.latent_dim, 512)
+        self.fd2 = nn.Linear(512, args.embedding_dim)
+        # self.fd1 = self.fd_x1
+        # self.fd2 = self.fd_x2
         self.label_mp_mu = self.feat_mp_mu
 
         # things they share
         self.dropout = nn.Dropout(p=args.keep_prob)
         self.scale_coeff = args.scale_coeff
+
+        self.attention = nn.Sequential(
+            nn.Linear(512, 256),
+            nn.Tanh(),
+            nn.Linear(256, 10)
+        )
 
     def label_encode(self, x):
         h0 = self.dropout(F.relu(self.fe0(x)))
@@ -264,22 +262,19 @@ class ModelEmbedding(nn.Module):
             feature_embedding[:, view_code * self.common_feature_dim:
                                  (view_code + 1) * self.common_feature_dim] = view_feature[0]  # view-specific feature
             view_comm_feature = self.fc_comm_extract(view_feature[1])  # common feature
+
             comm_feature += view_comm_feature
+
         comm_feature /= view_count
-
         feature_embedding[:, -self.common_feature_dim:] = comm_feature
+        
+        A = self.attention(comm_feature)  # NxK
+        A = torch.transpose(A, 1, 0)  # KxN
+        A = F.softmax(A, dim=1)  # softmax over N
+        M = torch.mm(A, comm_feature)  # KxL
 
-        # ...
-        # view-specific feature extracts
-        # view_features_dict = self._extract_view_features(feature)
-        # feature_embedding = torch.zeros(feature[0].shape[0], self.common_feature_dim).to(self.device)
-        # view_count = len(self.view_blocks)
 
-        # feature fusing
-        # for view_code, view_feature in view_features_dict.items():
-        #     view_comm_feature = self.fc_comm_extract(view_feature[1])  # common feature
-        #     feature_embedding += view_comm_feature
-        # feature_embedding /= view_count
+
 
         label_emb, label_mu, label_logvar = self.label_forward(label, feature_embedding)
         feat_emb, feat_mu, feat_logvar = self.feat_forward(feature_embedding)
@@ -355,7 +350,7 @@ def build_graph(X, k=10, args=None):
     flat_config = faiss.GpuIndexFlatConfig()
     flat_config.device = 0
     index = faiss.GpuIndexFlatIP(res, d, flat_config)  # build the index
-
+    
     faiss.normalize_L2(X)
     index.add(X)
     N = X.shape[0]
@@ -384,6 +379,72 @@ def build_graph(X, k=10, args=None):
     Wn = D * W * D
 
     return Wn
+
+class Attention(nn.Module):
+    def __init__(self):
+        super(Attention, self).__init__()
+        self.L = 500
+        self.D = 128
+        self.K = 1
+
+        self.feature_extractor_part1 = nn.Sequential(
+            nn.Conv2d(1, 20, kernel_size=5),
+            nn.ReLU(),
+            nn.MaxPool2d(2, stride=2),
+            nn.Conv2d(20, 50, kernel_size=5),
+            nn.ReLU(),
+            nn.MaxPool2d(2, stride=2)
+        )
+
+        self.feature_extractor_part2 = nn.Sequential(
+            nn.Linear(50 * 4 * 4, self.L),
+            nn.ReLU(),
+        )
+
+        self.attention = nn.Sequential(
+            nn.Linear(self.L, self.D),
+            nn.Tanh(),
+            nn.Linear(self.D, self.K)
+        )
+
+        self.classifier = nn.Sequential(
+            nn.Linear(self.L*self.K, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        x = x.squeeze(0)
+
+        H = self.feature_extractor_part1(x)
+        H = H.view(-1, 50 * 4 * 4)
+        H = self.feature_extractor_part2(H)  # NxL
+
+        A = self.attention(H)  # NxK
+        A = torch.transpose(A, 1, 0)  # KxN
+        A = F.softmax(A, dim=1)  # softmax over N
+
+        M = torch.mm(A, H)  # KxL
+
+        Y_prob = self.classifier(M)
+        Y_hat = torch.ge(Y_prob, 0.5).float()
+
+        return Y_prob, Y_hat, A
+
+    # AUXILIARY METHODS
+    def calculate_classification_error(self, X, Y):
+        Y = Y.float()
+        _, Y_hat, _ = self.forward(X)
+        error = 1. - Y_hat.eq(Y).cpu().float().mean().data.item()
+
+        return error, Y_hat
+
+    def calculate_objective(self, X, Y):
+        Y = Y.float()
+        Y_prob, _, A = self.forward(X)
+        Y_prob = torch.clamp(Y_prob, min=1e-5, max=1. - 1e-5)
+        neg_log_likelihood = -1. * (Y * torch.log(Y_prob) + (1. - Y) * torch.log(1. - Y_prob))  # negative log bernoulli
+
+        return neg_log_likelihood, A
 
 
 if __name__ == '__main__':

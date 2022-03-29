@@ -13,7 +13,7 @@ from utils.common_tools import split_data_set_by_idx, ViewsDataset, load_mat_dat
 
 
 def run(args, save_name):
-    features, labels, idx_list = load_mat_data_v1(os.path.join(args.DATA_ROOT, args.DATA_SET_NAME), True)
+    features, labels, idx_list = load_mat_data_v1(os.path.join(args.DATA_ROOT, args.DATA_SET_NAME + '.mat'), True)
 
     writer = SummaryWriter()
 
@@ -25,11 +25,11 @@ def run(args, save_name):
         TEST_SPLIT_INDEX = fold
         print('-' * 50 + '\n' + 'Fold: %s' % fold)
         train_features, train_labels, train_partial_labels, test_features, test_labels = split_data_set_by_idx(
-            features, labels, idx_list, TEST_SPLIT_INDEX, partial_rate=args.partial_rate)
+            features, labels, idx_list, TEST_SPLIT_INDEX, args)
 
         # load views features and labels
-        views_dataset = ViewsDataset(train_features, train_partial_labels, device)
-        views_data_loader = DataLoader(views_dataset, batch_size=256, shuffle=True, num_workers=0)
+        views_dataset = ViewsDataset(train_features, train_labels, device)
+        views_data_loader = DataLoader(views_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0)
 
         # instantiation View Model
         view_code_list = list(train_features.keys())
@@ -81,9 +81,6 @@ def run(args, save_name):
                 writer.add_scalar(f"Down/{key}", matrics_vals, epoch)  # log
 
     print("\n------------summary--------------")
-    if not os.path.exists('results'):
-        os.mkdir('results')
-
     with open(save_name, "w") as f:
         for k, v in avg_metrics.items():
             print("{metric}:\t{value}".format(metric=k, value=v / Fold_numbers))
@@ -93,7 +90,7 @@ def run(args, save_name):
     writer.flush()
     writer.close()
 
-def boot(args, save_name):
+def boot(args, save_dir, file_name):
     print('*' * 30)
     print('ML Loss coefficient:\t', args.coef_ml)
     print('KL loss coefficient:\t', args.coef_kl)
@@ -101,6 +98,11 @@ def boot(args, save_name):
     print('common feature dims:\t', args.common_feature_dim)
     print('optimizer:\t Adam')
     print('*' * 30)
+
+    save_name = save_dir + file_name
+
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
 
     if not os.path.exists(save_name):
         run(args, save_name)
@@ -114,12 +116,11 @@ if __name__ == '__main__':
 
     device = torch.device("cuda") if args.cuda else torch.device("cpu")
 
-    kl_coef_lists = [0.0]
+    # kl_coef_lists = [2.0, ]
+    # kl_coef_lists = np.arange(5.0, 10.0, 0.5).tolist()
     # kl_coef_lists += np.arange(1, 2, 0.1).tolist()
-    # kl_coef_lists += np.arange(2, 5, 0.5).tolist()
-    # datanames = ['Pascal.mat', 'scene.mat', 'yeast.mat',  'Corel5k.mat', 'emotions.mat', 'Mirflickr.mat', 'Espgame.mat',]
+    # kl_coef_lists += np.arange(2, 8, 0.5).tolist()
 
-    datanames = ['Corel5k.mat']
     # kl_coef_lists = [0.0]
     # for kl_coef in kl_coef_lists:
     #     for ml_coef in ml_coef_lists:
@@ -142,9 +143,31 @@ if __name__ == '__main__':
     #             save_name = f'results/{args.DATA_SET_NAME}_{args.coef_ml}_{args.coef_kl}_{args.lr}_{args.common_feature_dim}_{args.latent_dim}.txt'
     #             boot(args, save_name)
 
-    for kl_coef in kl_coef_lists:
+    # datanames = ['yeast.mat', 'scene.mat', 'Pascal.mat',  'emotions.mat', 'Corel5k.mat', 'Mirflickr.mat', 'Espgame.mat']
+    # datanames = ['Pascal.mat', 'Corel5k.mat']  # Mirflickr
+
+    datanames = ['yeast', 'scene', 'emotions', 'Pascal']
+    # datanames = ['emotions.mat']
+    lrs = [1e-3]
+    # lrs = [1e-3, 5e-3, 1e-4, 5e-4, 1e-5, 5e-5]
+    # etas = [1e-3, 5e-3, 1e-4, 5e-4, 1e-5, 5e-5]
+    etas = [5e-3]
+
+    # noise_rates = [0.0, 0.3, 0.5, 0.7]
+    noise_rates = [0.0]
+
+    # for kl_coef in kl_coef_lists:
+    for eta in etas:
         for dataname in datanames:
-            args.DATA_SET_NAME = dataname
-            args.coef_kl = kl_coef
-            save_name = f'results/{args.DATA_SET_NAME}_{args.coef_ml}_{args.epoch}_{args.coef_kl}_{args.lr}_{args.common_feature_dim}_{args.latent_dim}.txt'
-            boot(args, save_name)
+            for lr in lrs:
+                for p in noise_rates:
+                    args.lr = lr
+                    args.DATA_SET_NAME = dataname
+                    args.eta = eta
+                    args.noise_rate = p
+                    # args.coef_kl = kl_coef
+                    save_dir = f'results/{args.DATA_SET_NAME}/'
+                    file_name = f'{args.DATA_SET_NAME}_bs{args.batch_size}_ml{args.coef_ml}_' \
+                                f'kl{args.coef_kl}_epoch{args.epoch}_lr{args.lr}_com{args.common_feature_dim}_' \
+                                f'lat{args.latent_dim}_p{args.noise_rate}_non_.txt'
+                    boot(args, save_dir, file_name)
