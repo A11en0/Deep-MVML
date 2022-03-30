@@ -24,7 +24,7 @@ class Args:
 
         self.neighbors_num = 10
         self.no_verbose = True
-        self.using_lp = True
+        self.using_lp = False
         self.le = True
 
         self.ae = False

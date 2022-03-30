@@ -28,7 +28,7 @@ def run(args, save_name):
             features, labels, idx_list, TEST_SPLIT_INDEX, args)
 
         # load views features and labels
-        views_dataset = ViewsDataset(train_features, train_labels, device)
+        views_dataset = ViewsDataset(train_features, train_partial_labels, device)
         views_data_loader = DataLoader(views_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0)
 
         # instantiation View Model
@@ -115,7 +115,7 @@ if __name__ == '__main__':
     init_random_seed(args.seed)
 
     device = torch.device("cuda") if args.cuda else torch.device("cpu")
-
+    # device = 'cpu'
     # kl_coef_lists = [2.0, ]
     # kl_coef_lists = np.arange(5.0, 10.0, 0.5).tolist()
     # kl_coef_lists += np.arange(1, 2, 0.1).tolist()
@@ -146,7 +146,7 @@ if __name__ == '__main__':
     # datanames = ['yeast.mat', 'scene.mat', 'Pascal.mat',  'emotions.mat', 'Corel5k.mat', 'Mirflickr.mat', 'Espgame.mat']
     # datanames = ['Pascal.mat', 'Corel5k.mat']  # Mirflickr
 
-    datanames = ['yeast', 'scene', 'emotions', 'Pascal']
+    datanames = ['yeast', 'scene', 'emotions', ]  # 'Pascal']
     # datanames = ['emotions.mat']
     lrs = [1e-3]
     # lrs = [1e-3, 5e-3, 1e-4, 5e-4, 1e-5, 5e-5]
@@ -169,5 +169,5 @@ if __name__ == '__main__':
                     save_dir = f'results/{args.DATA_SET_NAME}/'
                     file_name = f'{args.DATA_SET_NAME}_bs{args.batch_size}_ml{args.coef_ml}_' \
                                 f'kl{args.coef_kl}_epoch{args.epoch}_lr{args.lr}_com{args.common_feature_dim}_' \
-                                f'lat{args.latent_dim}_p{args.noise_rate}_non_.txt'
+                                f'lat{args.latent_dim}_p{args.noise_rate}_non_novel_view_.txt'
                     boot(args, save_dir, file_name)

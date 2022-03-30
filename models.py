@@ -152,7 +152,8 @@ class ModelEmbedding(nn.Module):
         # initialization
 
         # feature layers
-        self.fx1 = nn.Linear(self.final_feature_num, 256)
+        # self.fx1 = nn.Linear(self.final_feature_num, 256)
+        self.fx1 = nn.Linear(512+64, 256)
         self.fx2 = nn.Linear(256, 512)
         self.fx3 = nn.Linear(512, 256)
         self.fx_mu = nn.Linear(256, args.latent_dim)
@@ -160,7 +161,8 @@ class ModelEmbedding(nn.Module):
         self.fx_mu_batchnorm = nn.BatchNorm1d(args.latent_dim)
         self.fx_sigma_batchnorm = nn.BatchNorm1d(args.latent_dim)
 
-        self.fd_x1 = nn.Linear(self.final_feature_num+args.latent_dim, 512)
+        # self.fd_x1 = nn.Linear(self.final_feature_num + args.latent_dim, 512)
+        self.fd_x1 = nn.Linear(512+2*args.latent_dim, 512)
         self.fd_x2 = nn.Linear(512, args.embedding_dim)
         self.feat_mp_mu = nn.Linear(args.embedding_dim, label_dim)
 
@@ -175,7 +177,8 @@ class ModelEmbedding(nn.Module):
         self.fe_sigma_batchnorm = nn.BatchNorm1d(args.latent_dim)
 
         # label layers
-        self.fd1 = nn.Linear(self.final_feature_num+args.latent_dim, 512)
+        # self.fd1 = nn.Linear(self.final_feature_num + args.latent_dim, 512)
+        self.fd1 = nn.Linear(64, 512)
         self.fd2 = nn.Linear(512, args.embedding_dim)
         # self.fd1 = self.fd_x1
         # self.fd2 = self.fd_x2
@@ -186,9 +189,9 @@ class ModelEmbedding(nn.Module):
         self.scale_coeff = args.scale_coeff
 
         self.attention = nn.Sequential(
-            nn.Linear(512, 256),
+            nn.Linear(512+64, 256),
             nn.Tanh(),
-            nn.Linear(256, 10)
+            nn.Linear(256, 1)
         )
 
     def label_encode(self, x):
@@ -231,13 +234,21 @@ class ModelEmbedding(nn.Module):
         return h6
         # return torch.sigmoid(self.feat_mp_mu(h5))
 
-    def label_forward(self, label, feat):
+    def label_forward_(self, label, feat):
         # x = torch.cat((feat, label), 1)
         mu, logvar = self.label_encode(label)
         mu = self.fe_mu_batchnorm(mu)
         logvar = self.fe_sigma_batchnorm(mu)
         z = self.label_reparameterize(mu, logvar)
         return self.label_decode(torch.cat((feat, z), 1)), mu, logvar
+
+    def label_forward(self, label):
+        # x = torch.cat((feat, label), 1)
+        mu, logvar = self.label_encode(label)
+        mu = self.fe_mu_batchnorm(mu)
+        logvar = self.fe_sigma_batchnorm(mu)
+        z = self.label_reparameterize(mu, logvar)
+        return self.label_decode(z), z, mu, logvar
 
     def feat_forward(self, x):
         # feature encoder
@@ -248,38 +259,35 @@ class ModelEmbedding(nn.Module):
         return self.feat_decode(torch.cat((x, z), 1)), mu, logvar
 
     def forward(self, feature, label):
+        label_emb, label_mu, label_logvar, z = self.label_forward(label)
+
         # view-specific feature extracts
         view_features_dict = self._extract_view_features(feature)
-        feature_embedding = torch.zeros(feature[0].shape[0], self.final_feature_num).to(self.device)
-
-        # features_embedding = torch.zeros(feature[0].shape[0], self.final_feature_num).to(self.device)
+        final_embed = torch.zeros(feature[0].shape[0], 3, 512).to(self.device)
         comm_feature = torch.zeros(feature[0].shape[0], self.common_feature_dim).to(self.device)
         view_count = len(self.view_blocks)
 
         # common feature
         for view_code, view_feature in view_features_dict.items():
             view_code = int(view_code)
-            feature_embedding[:, view_code * self.common_feature_dim:
-                                 (view_code + 1) * self.common_feature_dim] = view_feature[0]  # view-specific feature
+            final_embed[:, view_code, :] = view_feature[0]
             view_comm_feature = self.fc_comm_extract(view_feature[1])  # common feature
-
             comm_feature += view_comm_feature
 
         comm_feature /= view_count
-        feature_embedding[:, -self.common_feature_dim:] = comm_feature
-        
-        A = self.attention(comm_feature)  # NxK
-        A = torch.transpose(A, 1, 0)  # KxN
-        A = F.softmax(A, dim=1)  # softmax over N
-        M = torch.mm(A, comm_feature)  # KxL
+        final_embed[:, -1, :] = comm_feature
+        z = z.unsqueeze(1).expand(-1, 3, -1)
+        final_embed = torch.cat((final_embed, z), dim=-1)
+        A = self.attention(final_embed)  # NxK
+        A = A.permute(0, 2, 1)
+        A = F.softmax(A, dim=-1)  # softmax over N
+        M = torch.matmul(A, final_embed)  # KxL
+        feature_embedding = torch.squeeze(M)
 
-
-
-
-        label_emb, label_mu, label_logvar = self.label_forward(label, feature_embedding)
+        # label_emb, label_mu, label_logvar = self.label_forward(label, feature_embedding)
         feat_emb, feat_mu, feat_logvar = self.feat_forward(feature_embedding)
         embs = self.fe0.weight
-
+        
         label_out = torch.matmul(label_emb, embs).sigmoid()
         feat_out = torch.matmul(feat_emb, embs).sigmoid()
 
@@ -293,6 +301,10 @@ class ModelEmbedding(nn.Module):
             view_features = view_block(view_x)
             view_features_dict[view_block_code] = view_features
         return view_features_dict
+
+
+    # def forward_t(self, feature):
+
 
 def label_propagation(args, Wn, L, Y_pred, Y_P_train, Z_current, gamma, alpha, zeta, maxiter):
     beta = 1  # set beta as the pivot
