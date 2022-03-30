@@ -57,72 +57,6 @@ class Model(nn.Module):
             view_features_dict[view_block_code] = view_features
         return view_features_dict
 
-class Model_AE(nn.Module):
-    def __init__(self, view_blocks, decoder_blocks, common_feature_dim, label_num, device, model_args=None):
-        super(Model_AE, self).__init__()
-        self.view_blocks = nn.ModuleDict()
-        self.view_blocks_codes = []
-
-        self.decoder_blocks = nn.ModuleDict()
-        self.decoder_blocks_codes = []
-
-        for view_block in view_blocks:
-            self.view_blocks[str(view_block.code)] = view_block
-            self.view_blocks_codes.append(str(view_block.code))
-
-        for decoder_block in decoder_blocks:
-            self.decoder_blocks[str(decoder_block.code)] = decoder_block
-            self.decoder_blocks_codes.append(str(decoder_block.code))
-
-        self.model_args = model_args
-        self.common_feature_dim = common_feature_dim
-        view_count = len(self.view_blocks)
-        self.final_feature_num = (view_count + 1) * common_feature_dim
-        self.fc_comm_extract = nn.Linear(common_feature_dim, common_feature_dim)
-        self.fc_predictor = nn.Linear(self.final_feature_num, label_num)
-        self.device = device
-
-        # initialization
-
-    def forward(self, x, labels):
-        view_features_dict = self._extract_view_features(x)
-        recons = []
-        final_features = torch.zeros(x[0].shape[0], self.final_feature_num).to(self.device)
-        comm_feature = torch.zeros(x[0].shape[0], self.common_feature_dim).to(self.device)
-        view_count = len(self.view_blocks)
-
-        # common feature
-        for view_code, view_feature in view_features_dict.items():
-            view_code = int(view_code)
-            final_features[:, view_code * self.common_feature_dim: (view_code + 1) *
-            self.common_feature_dim] = view_feature[0]  # view-specific feature
-            view_comm_feature = self.fc_comm_extract(view_feature[1])  # common feature
-            comm_feature += view_comm_feature
-        comm_feature /= view_count
-
-        # concat view-specific and common -> Decoder
-        for view_code, view_feature in view_features_dict.items():
-            concat_features = torch.cat((comm_feature.clone(), view_feature[0].clone()), dim=1)
-            decoder_block = self.decoder_blocks[view_code]
-            recon = decoder_block(concat_features)
-            recons.append(recon)
-
-        # predict
-        final_features[:, -self.common_feature_dim:] = comm_feature
-        outputs = self.fc_predictor(final_features)
-        outputs = torch.sigmoid(outputs)
-
-        return recons, outputs
-
-    def _extract_view_features(self, x):
-        view_features_dict = {}
-        for view_block_code in self.view_blocks_codes:
-            view_x = x[int(view_block_code)]
-            view_block = self.view_blocks[view_block_code]
-            view_features = view_block(view_x)
-            view_features_dict[view_block_code] = view_features
-        return view_features_dict
-
 class ModelEmbedding(nn.Module):
     def __init__(self, view_blocks, decoder_blocks, common_feature_dim, label_dim, device, args=None):
         super(ModelEmbedding, self).__init__()
@@ -148,12 +82,8 @@ class ModelEmbedding(nn.Module):
         # self.fc_predictor = nn.Linear(common_feature_dim, label_dim)
         self.device = device
 
-        # self.label_encoder = LabelEmbedding(label_dim, 64, common_feature_dim)
-        # initialization
-
         # feature layers
-        # self.fx1 = nn.Linear(self.final_feature_num, 256)
-        self.fx1 = nn.Linear(512+64, 256)
+        self.fx1 = nn.Linear(512*3, 256)
         self.fx2 = nn.Linear(256, 512)
         self.fx3 = nn.Linear(512, 256)
         self.fx_mu = nn.Linear(256, args.latent_dim)
@@ -162,7 +92,7 @@ class ModelEmbedding(nn.Module):
         self.fx_sigma_batchnorm = nn.BatchNorm1d(args.latent_dim)
 
         # self.fd_x1 = nn.Linear(self.final_feature_num + args.latent_dim, 512)
-        self.fd_x1 = nn.Linear(512+2*args.latent_dim, 512)
+        self.fd_x1 = nn.Linear(512*3 + args.latent_dim, 512)
         self.fd_x2 = nn.Linear(512, args.embedding_dim)
         self.feat_mp_mu = nn.Linear(args.embedding_dim, label_dim)
 
@@ -178,7 +108,7 @@ class ModelEmbedding(nn.Module):
 
         # label layers
         # self.fd1 = nn.Linear(self.final_feature_num + args.latent_dim, 512)
-        self.fd1 = nn.Linear(64, 512)
+        self.fd1 = nn.Linear(args.latent_dim, 512)
         self.fd2 = nn.Linear(512, args.embedding_dim)
         # self.fd1 = self.fd_x1
         # self.fd2 = self.fd_x2
@@ -188,11 +118,15 @@ class ModelEmbedding(nn.Module):
         self.dropout = nn.Dropout(p=args.keep_prob)
         self.scale_coeff = args.scale_coeff
 
-        self.attention = nn.Sequential(
-            nn.Linear(512+64, 256),
-            nn.Tanh(),
-            nn.Linear(256, 1)
-        )
+        self.W = nn.Linear(512, 512)
+
+    def attention(self, x, y_emb):
+        y_emb = y_emb.T.unsqueeze(0).unsqueeze(1)
+        x = x.unsqueeze(2)
+        output = self.W(x * y_emb)
+        output = output.sum(dim=1).squeeze(1)  # view sum pooling
+        output = output.sum(dim=1).squeeze(1)  # label sum pooling
+        return output
 
     def label_encode(self, x):
         h0 = self.dropout(F.relu(self.fe0(x)))
@@ -211,14 +145,14 @@ class ModelEmbedding(nn.Module):
         return mu, logvar
 
     def label_reparameterize(self, mu, logvar):
-        std = torch.exp(0.5*logvar)
+        std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
-        return mu + eps*std
+        return mu + eps * std
 
     def feat_reparameterize(self, mu, logvar):
-        std = torch.exp(0.5*logvar)
+        std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
-        return mu + eps*std
+        return mu + eps * std
 
     def label_decode(self, z):
         h3 = F.relu(self.fd1(z))
@@ -233,14 +167,6 @@ class ModelEmbedding(nn.Module):
         h6 = F.normalize(h5, dim=1)
         return h6
         # return torch.sigmoid(self.feat_mp_mu(h5))
-
-    def label_forward_(self, label, feat):
-        # x = torch.cat((feat, label), 1)
-        mu, logvar = self.label_encode(label)
-        mu = self.fe_mu_batchnorm(mu)
-        logvar = self.fe_sigma_batchnorm(mu)
-        z = self.label_reparameterize(mu, logvar)
-        return self.label_decode(torch.cat((feat, z), 1)), mu, logvar
 
     def label_forward(self, label):
         # x = torch.cat((feat, label), 1)
@@ -259,35 +185,27 @@ class ModelEmbedding(nn.Module):
         return self.feat_decode(torch.cat((x, z), 1)), mu, logvar
 
     def forward(self, feature, label):
-        label_emb, label_mu, label_logvar, z = self.label_forward(label)
-
         # view-specific feature extracts
         view_features_dict = self._extract_view_features(feature)
-        final_embed = torch.zeros(feature[0].shape[0], 3, 512).to(self.device)
-        comm_feature = torch.zeros(feature[0].shape[0], self.common_feature_dim).to(self.device)
+        comm_features = torch.zeros(feature[0].shape[0], 2, 512).to(self.device)
+        view_features = torch.Tensor([]).to(self.device)
         view_count = len(self.view_blocks)
 
         # common feature
         for view_code, view_feature in view_features_dict.items():
             view_code = int(view_code)
-            final_embed[:, view_code, :] = view_feature[0]
+            view_features = torch.cat((view_features, view_feature[0]), dim=1)  # view-specific feature
             view_comm_feature = self.fc_comm_extract(view_feature[1])  # common feature
-            comm_feature += view_comm_feature
+            comm_features[:, view_code, :] = view_comm_feature
 
-        comm_feature /= view_count
-        final_embed[:, -1, :] = comm_feature
-        z = z.unsqueeze(1).expand(-1, 3, -1)
-        final_embed = torch.cat((final_embed, z), dim=-1)
-        A = self.attention(final_embed)  # NxK
-        A = A.permute(0, 2, 1)
-        A = F.softmax(A, dim=-1)  # softmax over N
-        M = torch.matmul(A, final_embed)  # KxL
-        feature_embedding = torch.squeeze(M)
+        # comm_feature /= view_count
+        embs = self.fe0.weight  # label embedding
+        comm_features = self.attention(comm_features, embs)  # label guide common feature fusion
+        feature_embedding = torch.cat((view_features, comm_features), dim=1)
 
-        # label_emb, label_mu, label_logvar = self.label_forward(label, feature_embedding)
+        label_emb, label_z, label_mu, label_logvar = self.label_forward(label)
         feat_emb, feat_mu, feat_logvar = self.feat_forward(feature_embedding)
-        embs = self.fe0.weight
-        
+
         label_out = torch.matmul(label_emb, embs).sigmoid()
         feat_out = torch.matmul(feat_emb, embs).sigmoid()
 
@@ -301,10 +219,6 @@ class ModelEmbedding(nn.Module):
             view_features = view_block(view_x)
             view_features_dict[view_block_code] = view_features
         return view_features_dict
-
-
-    # def forward_t(self, feature):
-
 
 def label_propagation(args, Wn, L, Y_pred, Y_P_train, Z_current, gamma, alpha, zeta, maxiter):
     beta = 1  # set beta as the pivot
@@ -391,72 +305,6 @@ def build_graph(X, k=10, args=None):
     Wn = D * W * D
 
     return Wn
-
-class Attention(nn.Module):
-    def __init__(self):
-        super(Attention, self).__init__()
-        self.L = 500
-        self.D = 128
-        self.K = 1
-
-        self.feature_extractor_part1 = nn.Sequential(
-            nn.Conv2d(1, 20, kernel_size=5),
-            nn.ReLU(),
-            nn.MaxPool2d(2, stride=2),
-            nn.Conv2d(20, 50, kernel_size=5),
-            nn.ReLU(),
-            nn.MaxPool2d(2, stride=2)
-        )
-
-        self.feature_extractor_part2 = nn.Sequential(
-            nn.Linear(50 * 4 * 4, self.L),
-            nn.ReLU(),
-        )
-
-        self.attention = nn.Sequential(
-            nn.Linear(self.L, self.D),
-            nn.Tanh(),
-            nn.Linear(self.D, self.K)
-        )
-
-        self.classifier = nn.Sequential(
-            nn.Linear(self.L*self.K, 1),
-            nn.Sigmoid()
-        )
-
-    def forward(self, x):
-        x = x.squeeze(0)
-
-        H = self.feature_extractor_part1(x)
-        H = H.view(-1, 50 * 4 * 4)
-        H = self.feature_extractor_part2(H)  # NxL
-
-        A = self.attention(H)  # NxK
-        A = torch.transpose(A, 1, 0)  # KxN
-        A = F.softmax(A, dim=1)  # softmax over N
-
-        M = torch.mm(A, H)  # KxL
-
-        Y_prob = self.classifier(M)
-        Y_hat = torch.ge(Y_prob, 0.5).float()
-
-        return Y_prob, Y_hat, A
-
-    # AUXILIARY METHODS
-    def calculate_classification_error(self, X, Y):
-        Y = Y.float()
-        _, Y_hat, _ = self.forward(X)
-        error = 1. - Y_hat.eq(Y).cpu().float().mean().data.item()
-
-        return error, Y_hat
-
-    def calculate_objective(self, X, Y):
-        Y = Y.float()
-        Y_prob, _, A = self.forward(X)
-        Y_prob = torch.clamp(Y_prob, min=1e-5, max=1. - 1e-5)
-        neg_log_likelihood = -1. * (Y * torch.log(Y_prob) + (1. - Y) * torch.log(1. - Y_prob))  # negative log bernoulli
-
-        return neg_log_likelihood, A
 
 
 if __name__ == '__main__':

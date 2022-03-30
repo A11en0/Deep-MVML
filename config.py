@@ -7,7 +7,7 @@ class Args:
     def __init__(self):
         self.DATA_ROOT = './datasets'
         self.DATA_SET_NAME = 'scene'
-        self.epoch = 20
+        self.epoch = 25
         self.show_epoch = 1
         self.epoch_used_for_final_result = 4
         self.model_save_epoch = 5
@@ -34,7 +34,7 @@ class Args:
         self.noise_num = 3
 
         self.common_feature_dim = 512
-        self.latent_dim = 64
+        self.latent_dim = 10
         self.embedding_dim = 512  # 极其重要
         self.keep_prob = 0.5
         self.scale_coeff = 1.0

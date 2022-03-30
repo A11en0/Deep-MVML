@@ -7,7 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from config import *
 from layer.view_block import ViewBlock, DecoderBlock
-from models import Model, Model_AE, ModelEmbedding
+from models import Model, ModelEmbedding
 from train import train, test
 from utils.common_tools import split_data_set_by_idx, ViewsDataset, load_mat_data_v1, init_random_seed
 
@@ -116,45 +116,14 @@ if __name__ == '__main__':
 
     device = torch.device("cuda") if args.cuda else torch.device("cpu")
     # device = 'cpu'
-    # kl_coef_lists = [2.0, ]
-    # kl_coef_lists = np.arange(5.0, 10.0, 0.5).tolist()
-    # kl_coef_lists += np.arange(1, 2, 0.1).tolist()
-    # kl_coef_lists += np.arange(2, 8, 0.5).tolist()
 
-    # kl_coef_lists = [0.0]
-    # for kl_coef in kl_coef_lists:
-    #     for ml_coef in ml_coef_lists:
-    #         args.coef_kl = kl_coef
-    #         args.coef_ml = ml_coef
-    #         boot(args)
-
-    # common_feature_dims = [512]
-    # # common_feature_dims = [64, 128, 256, 512]
-    # latents_dims = [64]
-    # # latents_dims = [64, 128, 256, 512]
-    # for lr in [1e-3, ]:
-    #     # for kl_coef in kl_coef_lists:
-    #     for latents_dim in latents_dims:
-    #         for common_feature_dim in common_feature_dims:
-    #             args.lr = lr
-    #             args.common_feature_dim = common_feature_dim
-    #             args.latent_dim = latents_dim
-    #             args.coef_kl = kl_coef
-    #             save_name = f'results/{args.DATA_SET_NAME}_{args.coef_ml}_{args.coef_kl}_{args.lr}_{args.common_feature_dim}_{args.latent_dim}.txt'
-    #             boot(args, save_name)
-
+    # tune parameters
     # datanames = ['yeast.mat', 'scene.mat', 'Pascal.mat',  'emotions.mat', 'Corel5k.mat', 'Mirflickr.mat', 'Espgame.mat']
-    # datanames = ['Pascal.mat', 'Corel5k.mat']  # Mirflickr
-
     datanames = ['yeast', 'scene', 'emotions', ]  # 'Pascal']
-    # datanames = ['emotions.mat']
     lrs = [1e-3]
-    # lrs = [1e-3, 5e-3, 1e-4, 5e-4, 1e-5, 5e-5]
-    # etas = [1e-3, 5e-3, 1e-4, 5e-4, 1e-5, 5e-5]
     etas = [5e-3]
-
-    # noise_rates = [0.0, 0.3, 0.5, 0.7]
-    noise_rates = [0.0]
+    noise_rates = [0.3, 0.5, 0.7]
+    # noise_rates = [0.0]
 
     # for kl_coef in kl_coef_lists:
     for eta in etas:
@@ -169,5 +138,5 @@ if __name__ == '__main__':
                     save_dir = f'results/{args.DATA_SET_NAME}/'
                     file_name = f'{args.DATA_SET_NAME}_bs{args.batch_size}_ml{args.coef_ml}_' \
                                 f'kl{args.coef_kl}_epoch{args.epoch}_lr{args.lr}_com{args.common_feature_dim}_' \
-                                f'lat{args.latent_dim}_p{args.noise_rate}_non_novel_view_.txt'
+                                f'lat{args.latent_dim}_p{args.noise_rate}.txt'
                     boot(args, save_dir, file_name)
