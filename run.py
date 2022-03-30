@@ -37,15 +37,14 @@ def run(args, save_name):
         view_blocks = [ViewBlock(view_code_list[i], view_feature_nums_list[i], args.common_feature_dim)
                        for i in range(len(view_code_list))]
 
-        decoder_blocks = [DecoderBlock(view_code_list[i], 128, view_feature_nums_list[i])
-                          for i in range(len(view_code_list))]
+        # decoder_blocks = [DecoderBlock(view_code_list[i], 128, view_feature_nums_list[i])
+        #                   for i in range(len(view_code_list))]
 
         # load model
         label_nums = train_labels.shape[1]
-        if args.ae:
-            model = Model_AE(view_blocks, decoder_blocks, args.common_feature_dim, label_nums, device, args).to(device)
-        elif args.le:
-            model = ModelEmbedding(view_blocks, decoder_blocks, args.common_feature_dim, label_nums, device, args).to(device)
+
+        if args.le:
+            model = ModelEmbedding(view_blocks, args.common_feature_dim, label_nums, device, args).to(device)
         else:
             model = Model(view_blocks, args.common_feature_dim, label_nums, device, args).to(device)
 
@@ -119,11 +118,14 @@ if __name__ == '__main__':
 
     # tune parameters
     # datanames = ['yeast.mat', 'scene.mat', 'Pascal.mat',  'emotions.mat', 'Corel5k.mat', 'Mirflickr.mat', 'Espgame.mat']
-    datanames = ['yeast', 'scene', 'emotions', ]  # 'Pascal']
+    # datanames = ['yeast', 'scene', 'emotions', ]  # 'Pascal']
+    datanames = ['Corel5k']  # 20
+
     lrs = [1e-3]
     etas = [5e-3]
-    noise_rates = [0.3, 0.5, 0.7]
-    # noise_rates = [0.0]
+
+    # noise_rates = [0.3, 0.5, 0.7]
+    noise_rates = [0.0]
 
     # for kl_coef in kl_coef_lists:
     for eta in etas:

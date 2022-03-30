@@ -58,21 +58,21 @@ class Model(nn.Module):
         return view_features_dict
 
 class ModelEmbedding(nn.Module):
-    def __init__(self, view_blocks, decoder_blocks, common_feature_dim, label_dim, device, args=None):
+    def __init__(self, view_blocks, common_feature_dim, label_dim, device, args=None):
         super(ModelEmbedding, self).__init__()
         self.view_blocks = nn.ModuleDict()
         self.view_blocks_codes = []
 
-        self.decoder_blocks = nn.ModuleDict()
-        self.decoder_blocks_codes = []
+        # self.decoder_blocks = nn.ModuleDict()
+        # self.decoder_blocks_codes = []
 
         for view_block in view_blocks:
             self.view_blocks[str(view_block.code)] = view_block
             self.view_blocks_codes.append(str(view_block.code))
 
-        for decoder_block in decoder_blocks:
-            self.decoder_blocks[str(decoder_block.code)] = decoder_block
-            self.decoder_blocks_codes.append(str(decoder_block.code))
+        # for decoder_block in decoder_blocks:
+        #     self.decoder_blocks[str(decoder_block.code)] = decoder_block
+        #     self.decoder_blocks_codes.append(str(decoder_block.code))
 
         self.common_feature_dim = args.common_feature_dim
 
@@ -83,7 +83,7 @@ class ModelEmbedding(nn.Module):
         self.device = device
 
         # feature layers
-        self.fx1 = nn.Linear(512*3, 256)
+        self.fx1 = nn.Linear(512*(view_count + 1), 256)
         self.fx2 = nn.Linear(256, 512)
         self.fx3 = nn.Linear(512, 256)
         self.fx_mu = nn.Linear(256, args.latent_dim)
@@ -92,7 +92,7 @@ class ModelEmbedding(nn.Module):
         self.fx_sigma_batchnorm = nn.BatchNorm1d(args.latent_dim)
 
         # self.fd_x1 = nn.Linear(self.final_feature_num + args.latent_dim, 512)
-        self.fd_x1 = nn.Linear(512*3 + args.latent_dim, 512)
+        self.fd_x1 = nn.Linear(512*(view_count + 1) + args.latent_dim, 512)
         self.fd_x2 = nn.Linear(512, args.embedding_dim)
         self.feat_mp_mu = nn.Linear(args.embedding_dim, label_dim)
 
@@ -108,7 +108,7 @@ class ModelEmbedding(nn.Module):
 
         # label layers
         # self.fd1 = nn.Linear(self.final_feature_num + args.latent_dim, 512)
-        self.fd1 = nn.Linear(args.latent_dim, 512)
+        self.fd1 = nn.Linear(args.latent_dim, 512)   # disangles
         self.fd2 = nn.Linear(512, args.embedding_dim)
         # self.fd1 = self.fd_x1
         # self.fd2 = self.fd_x2
@@ -119,11 +119,17 @@ class ModelEmbedding(nn.Module):
         self.scale_coeff = args.scale_coeff
 
         self.W = nn.Linear(512, 512)
+        self.args = args
 
     def attention(self, x, y_emb):
+        '''
+        :param x: [256, 2, 512]
+        :param y_emb: [512, 14]
+        :return:
+        '''
         y_emb = y_emb.T.unsqueeze(0).unsqueeze(1)
         x = x.unsqueeze(2)
-        output = self.W(x * y_emb)
+        output = self.W(x * y_emb)  # [batch_size, view_count, label_count, embedding_dim]
         output = output.sum(dim=1).squeeze(1)  # view sum pooling
         output = output.sum(dim=1).squeeze(1)  # label sum pooling
         return output
@@ -186,10 +192,10 @@ class ModelEmbedding(nn.Module):
 
     def forward(self, feature, label):
         # view-specific feature extracts
-        view_features_dict = self._extract_view_features(feature)
-        comm_features = torch.zeros(feature[0].shape[0], 2, 512).to(self.device)
-        view_features = torch.Tensor([]).to(self.device)
         view_count = len(self.view_blocks)
+        view_features_dict = self._extract_view_features(feature)
+        comm_features = torch.zeros(feature[0].shape[0], view_count, 512).to(self.device)
+        view_features = torch.Tensor([]).to(self.device)
 
         # common feature
         for view_code, view_feature in view_features_dict.items():
@@ -200,7 +206,11 @@ class ModelEmbedding(nn.Module):
 
         # comm_feature /= view_count
         embs = self.fe0.weight  # label embedding
-        comm_features = self.attention(comm_features, embs)  # label guide common feature fusion
+        if self.args.attention:
+            comm_features = self.attention(comm_features, embs)  # label guide common feature fusion
+        else:
+            comm_features = torch.mean(comm_features, dim=1)
+
         feature_embedding = torch.cat((view_features, comm_features), dim=1)
 
         label_emb, label_z, label_mu, label_logvar = self.label_forward(label)

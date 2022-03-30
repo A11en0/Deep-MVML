@@ -40,9 +40,7 @@ def test(model, features, labels, device, model_state_path=None, is_eval=False, 
 
     # prediction
     with torch.no_grad():
-        if args.ae:
-            recons, outputs = model(features)
-        elif args.le:
+        if args.le:
             outputs_y, label_mu, label_logvar, outputs, feat_mu, feat_logvar = model(features, labels)
         else:
             outputs = model(features)
@@ -111,12 +109,7 @@ class Trainer(object):
                     inputs[i] = inputs[i].to(self.device)
                 labels = labels.to(self.device)
 
-                if args.ae:
-                    recons, outputs = self.model(inputs, labels)
-                    for i, _ in enumerate(inputs):
-                        _RL_loss = _RL_loss + F.mse_loss(recons[i], inputs[i])
-                    _RL_loss = _RL_loss / len(inputs)
-                elif args.le:
+                if args.le:
                     # predict / feature embedding / label embedding
                     label_out, label_mu, label_logvar, feat_out, feat_mu, feat_logvar = self.model(inputs, labels)
                     kl_loss = calc_kl_loss(feat_mu, feat_logvar, label_mu, label_logvar, labels)
@@ -141,11 +134,7 @@ class Trainer(object):
 
                 loss = args.coef_ml * _ML_loss
 
-                if args.ae:
-                    loss += self.loss_coefficient['RL_loss'] * _RL_loss
-                    print_str = f'Epoch: {epoch}\t ML Loss: {_ML_loss.item():.4f}\tRL Loss: ' \
-                                f'{_RL_loss.item():.4f}\tTotal Loss: {loss.item():.4f}'
-                elif args.le:
+                if args.le:
                     loss += kl_loss * args.coef_kl
                     print_str = f'Epoch: {epoch}\t ML Loss: {_ML_loss.item():.4f}\tKL Loss: ' \
                                 f'{kl_loss.item():.4f}\tTotal Loss: {loss.item():.4f}'

@@ -26,15 +26,14 @@ class Args:
         self.no_verbose = True
         self.using_lp = False
         self.le = True
-
-        self.ae = False
+        self.attention = True
 
         self.lr = 1e-3  # 5e-3
         self.noise_rate = 0.7
         self.noise_num = 3
 
         self.common_feature_dim = 512
-        self.latent_dim = 10
+        self.latent_dim = 64  # 小数据集 10
         self.embedding_dim = 512  # 极其重要
         self.keep_prob = 0.5
         self.scale_coeff = 1.0
