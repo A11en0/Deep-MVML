@@ -21,6 +21,7 @@ def run(args, save_name):
     metrics_result_list = []
     avg_metrics = {}
     fold_list = []
+    rets = np.zeros((Fold_numbers, 7))
     for fold in range(Fold_numbers):
         TEST_SPLIT_INDEX = fold
         print('-' * 50 + '\n' + 'Fold: %s' % fold)
@@ -56,6 +57,9 @@ def run(args, save_name):
         metrics_results, _ = test(model, test_features, test_labels, device, is_eval=True, args=args)
         # pprint(metrics_results)
 
+        for i, m in enumerate(metrics_results):
+            rets[fold][i] = m[1]
+
         # show results
         for m in metrics_results:
             if m[0] in avg_metrics:
@@ -80,11 +84,19 @@ def run(args, save_name):
                 writer.add_scalar(f"Down/{key}", matrics_vals, epoch)  # log
 
     print("\n------------summary--------------")
+    means = np.mean(rets, axis=0)
+    stds = np.std(rets, axis=0)
+    metrics = ['hamming_loss', 'avg_precision', 'one_error', 'ranking_loss', 'coverage', 'macrof1', 'microf1',]
     with open(save_name, "w") as f:
-        for k, v in avg_metrics.items():
-            print("{metric}:\t{value}".format(metric=k, value=v / Fold_numbers))
-            f.write("{metric}:\t{value}".format(metric=k, value=v / Fold_numbers))
+        for i, _ in enumerate(means):
+            print("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics[i], means=means[i], std=stds[i]))
+            f.write("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics[i], means=means[i], std=stds[i]))
             f.write("\n")
+
+    #     for k, v in avg_metrics.items():
+    #         print("{metric}\t{value:.4f}".format(metric=k, value=v / Fold_numbers))
+    #         f.write("{metric}\t{value:.4f}".format(metric=k, value=v / Fold_numbers))
+    #         f.write("\n")
 
     writer.flush()
     writer.close()
@@ -103,8 +115,8 @@ def boot(args, save_dir, file_name):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    if not os.path.exists(save_name):
-        run(args, save_name)
+    # if not os.path.exists(save_name):
+    run(args, save_name)
 
 
 if __name__ == '__main__':
@@ -119,7 +131,9 @@ if __name__ == '__main__':
     # tune parameters
     # datanames = ['yeast.mat', 'scene.mat', 'Pascal.mat',  'emotions.mat', 'Corel5k.mat', 'Mirflickr.mat', 'Espgame.mat']
     # datanames = ['yeast', 'scene', 'emotions', ]  # 'Pascal']
-    datanames = ['Corel5k']  # 20
+    # datanames = ['emotions']
+    # datanames = ['Corel5k']  # 20
+    datanames = ['emotions']
 
     lrs = [1e-3]
     etas = [5e-3]

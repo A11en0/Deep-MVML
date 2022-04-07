@@ -7,6 +7,8 @@ from torch import nn
 from sklearn import preprocessing
 import torch.nn.functional as F
 
+from layer.VAE import Feature_VAE, Label_VAE
+
 
 class Model(nn.Module):
     def __init__(self, view_blocks, common_feature_dim, label_num, device, model_args=None):
@@ -60,66 +62,45 @@ class Model(nn.Module):
 class ModelEmbedding(nn.Module):
     def __init__(self, view_blocks, common_feature_dim, label_dim, device, args=None):
         super(ModelEmbedding, self).__init__()
+        self.device = device
+
         self.view_blocks = nn.ModuleDict()
         self.view_blocks_codes = []
-
-        # self.decoder_blocks = nn.ModuleDict()
-        # self.decoder_blocks_codes = []
 
         for view_block in view_blocks:
             self.view_blocks[str(view_block.code)] = view_block
             self.view_blocks_codes.append(str(view_block.code))
-
-        # for decoder_block in decoder_blocks:
-        #     self.decoder_blocks[str(decoder_block.code)] = decoder_block
-        #     self.decoder_blocks_codes.append(str(decoder_block.code))
 
         self.common_feature_dim = args.common_feature_dim
 
         view_count = len(self.view_blocks)
         self.final_feature_num = (view_count + 1) * common_feature_dim
         self.fc_comm_extract = nn.Linear(common_feature_dim, common_feature_dim)
-        # self.fc_predictor = nn.Linear(common_feature_dim, label_dim)
-        self.device = device
 
-        # feature layers
-        self.fx1 = nn.Linear(512*(view_count + 1), 256)
-        self.fx2 = nn.Linear(256, 512)
-        self.fx3 = nn.Linear(512, 256)
-        self.fx_mu = nn.Linear(256, args.latent_dim)
-        self.fx_logvar = nn.Linear(256, args.latent_dim)
-        self.fx_mu_batchnorm = nn.BatchNorm1d(args.latent_dim)
-        self.fx_sigma_batchnorm = nn.BatchNorm1d(args.latent_dim)
+        # feature VAE
+        self.feat_forward = Feature_VAE(in_features=512*(view_count + 1), out_features=256,
+                                           hidden_features=[256, 512], label_dim=label_dim,
+                                           view_count=view_count, args=args)
 
-        # self.fd_x1 = nn.Linear(self.final_feature_num + args.latent_dim, 512)
-        self.fd_x1 = nn.Linear(512*(view_count + 1) + args.latent_dim, 512)
-        self.fd_x2 = nn.Linear(512, args.embedding_dim)
-        self.feat_mp_mu = nn.Linear(args.embedding_dim, label_dim)
-
-        # label layers
+        # label embedding
         self.fe0 = nn.Linear(label_dim, args.embedding_dim)
 
-        self.fe1 = nn.Linear(args.embedding_dim, 512)
-        self.fe2 = nn.Linear(512, 256)
-        self.fe_mu = nn.Linear(256, args.latent_dim)
-        self.fe_logvar = nn.Linear(256, args.latent_dim)
-        self.fe_mu_batchnorm = nn.BatchNorm1d(args.latent_dim)
-        self.fe_sigma_batchnorm = nn.BatchNorm1d(args.latent_dim)
+        # label VAE
+        self.label_forward = Label_VAE(label_dim=label_dim, label_embedding_layer=self.fe0,
+                                       out_features=256, args=args)
 
-        # label layers
-        # self.fd1 = nn.Linear(self.final_feature_num + args.latent_dim, 512)
-        self.fd1 = nn.Linear(args.latent_dim, 512)   # disangles
-        self.fd2 = nn.Linear(512, args.embedding_dim)
-        # self.fd1 = self.fd_x1
-        # self.fd2 = self.fd_x2
-        self.label_mp_mu = self.feat_mp_mu
-
-        # things they share
-        self.dropout = nn.Dropout(p=args.keep_prob)
-        self.scale_coeff = args.scale_coeff
-
+        # attention
         self.W = nn.Linear(512, 512)
         self.args = args
+
+    def _extract_view_features(self, x):
+        view_features_dict = {}
+        for view_block_code in self.view_blocks_codes:
+            view_x = x[int(view_block_code)]
+            view_block = self.view_blocks[view_block_code]
+            view_features = view_block(view_x)
+            view_features_dict[view_block_code] = view_features
+        return view_features_dict
 
     def attention(self, x, y_emb):
         '''
@@ -127,68 +108,15 @@ class ModelEmbedding(nn.Module):
         :param y_emb: [512, 14]
         :return:
         '''
+        # y_emb = y_emb.T.unsqueeze(0)
+
         y_emb = y_emb.T.unsqueeze(0).unsqueeze(1)
         x = x.unsqueeze(2)
-        output = self.W(x * y_emb)  # [batch_size, view_count, label_count, embedding_dim]
+        output = x * y_emb
+        output = self.W(output)  # [batch_size, view_count, label_count, embedding_dim]
         output = output.sum(dim=1).squeeze(1)  # view sum pooling
         output = output.sum(dim=1).squeeze(1)  # label sum pooling
         return output
-
-    def label_encode(self, x):
-        h0 = self.dropout(F.relu(self.fe0(x)))
-        h1 = self.dropout(F.relu(self.fe1(h0)))
-        h2 = self.dropout(F.relu(self.fe2(h1)))
-        mu = self.fe_mu(h2) * self.scale_coeff
-        logvar = self.fe_logvar(h2) * self.scale_coeff
-        return mu, logvar
-
-    def feat_encode(self, x):
-        h1 = self.dropout(F.relu(self.fx1(x)))
-        h2 = self.dropout(F.relu(self.fx2(h1)))
-        h3 = self.dropout(F.relu(self.fx3(h2)))
-        mu = self.fx_mu(h3) * self.scale_coeff
-        logvar = self.fx_logvar(h3) * self.scale_coeff
-        return mu, logvar
-
-    def label_reparameterize(self, mu, logvar):
-        std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
-        return mu + eps * std
-
-    def feat_reparameterize(self, mu, logvar):
-        std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
-        return mu + eps * std
-
-    def label_decode(self, z):
-        h3 = F.relu(self.fd1(z))
-        h4 = F.relu(self.fd2(h3))
-        h5 = F.normalize(h4, dim=1)
-        return h5
-        # return torch.sigmoid(self.label_mp_mu(h4))
-
-    def feat_decode(self, z):
-        h4 = F.relu(self.fd_x1(z))
-        h5 = F.relu(self.fd_x2(h4))
-        h6 = F.normalize(h5, dim=1)
-        return h6
-        # return torch.sigmoid(self.feat_mp_mu(h5))
-
-    def label_forward(self, label):
-        # x = torch.cat((feat, label), 1)
-        mu, logvar = self.label_encode(label)
-        mu = self.fe_mu_batchnorm(mu)
-        logvar = self.fe_sigma_batchnorm(mu)
-        z = self.label_reparameterize(mu, logvar)
-        return self.label_decode(z), z, mu, logvar
-
-    def feat_forward(self, x):
-        # feature encoder
-        mu, logvar = self.feat_encode(x)
-        mu = self.fx_mu_batchnorm(mu)
-        logvar = self.fx_sigma_batchnorm(mu)
-        z = self.feat_reparameterize(mu, logvar)
-        return self.feat_decode(torch.cat((x, z), 1)), mu, logvar
 
     def forward(self, feature, label):
         # view-specific feature extracts
@@ -212,7 +140,7 @@ class ModelEmbedding(nn.Module):
             comm_features = torch.mean(comm_features, dim=1)
 
         feature_embedding = torch.cat((view_features, comm_features), dim=1)
-
+        
         label_emb, label_z, label_mu, label_logvar = self.label_forward(label)
         feat_emb, feat_mu, feat_logvar = self.feat_forward(feature_embedding)
 
@@ -220,15 +148,6 @@ class ModelEmbedding(nn.Module):
         feat_out = torch.matmul(feat_emb, embs).sigmoid()
 
         return label_out, label_mu, label_logvar, feat_out, feat_mu, feat_logvar
-
-    def _extract_view_features(self, x):
-        view_features_dict = {}
-        for view_block_code in self.view_blocks_codes:
-            view_x = x[int(view_block_code)]
-            view_block = self.view_blocks[view_block_code]
-            view_features = view_block(view_x)
-            view_features_dict[view_block_code] = view_features
-        return view_features_dict
 
 def label_propagation(args, Wn, L, Y_pred, Y_P_train, Z_current, gamma, alpha, zeta, maxiter):
     beta = 1  # set beta as the pivot

@@ -7,13 +7,13 @@ class Args:
     def __init__(self):
         self.DATA_ROOT = './datasets'
         self.DATA_SET_NAME = 'scene'
-        self.epoch = 25
+        self.epoch = 50
         self.show_epoch = 1
         self.epoch_used_for_final_result = 4
         self.model_save_epoch = 5
         self.model_save_dir = 'model_save_dir'
         self.batch_size = 256
-        self.seed = 8
+        self.seed = 43
         self.cuda = True
 
         self.gamma = 0.1  # [0.001, 0.01, 0.1] 1
@@ -24,7 +24,7 @@ class Args:
 
         self.neighbors_num = 10
         self.no_verbose = True
-        self.using_lp = False
+        self.using_lp = True
         self.le = True
         self.attention = True
 

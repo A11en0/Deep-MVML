@@ -74,7 +74,8 @@ class Trainer(object):
         loss_list = []
         kl_loss = _RL_loss = 0.0
         Wn = 0.0
-
+        best_F1 = 0.0
+        best_epoch = 0
         # writer = SummaryWriter()
         if not os.path.exists(self.model_save_dir):
             os.makedirs(self.model_save_dir)
@@ -174,12 +175,22 @@ class Trainer(object):
                 loss_list[epoch]["MacroF1"] = metrics_results[5][1]
                 loss_list[epoch]["MicroF1"] = metrics_results[6][1]
 
+                if best_F1 < metrics_results[6][1]:
+                    best_F1, best_epoch = metrics_results[6][1], epoch
+
+                metrics = ['hamming_loss', 'avg_precision', 'one_error', 'ranking_loss', 'coverage', 'macrof1',
+                           'microf1', ]
+                for i in range(6):
+                    print(f"{metrics[i]}: {metrics_results[i][1]:.4f}", end='\t')
+                print("\n")
+
             if (epoch + 1) % self.model_save_epoch == 0:
                 torch.save(self.model.state_dict(),
                         os.path.join(self.model_save_dir,
                                      'fold' + str(fold)+'_' + 'epoch' + str(epoch + 1) + '.pth'))
         # writer.flush()
         # writer.close()
+        print(f"best_F1: {best_F1}, epoch {best_epoch}")
         return loss_list
 
 
