@@ -11,11 +11,10 @@ from utils.ml_metrics import all_metrics, RankingLoss
 
 
 def train(model, device, views_data_loader, args, loss_coefficient,
-          train_features, train_partial_labels, test_features, test_labels,
-          weight_decay=1e-5, fold=1):
+          train_features, train_partial_labels, test_features, test_labels, fold=1):
 
     # init optimizer
-    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=weight_decay)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
     # train model
     trainer = Trainer(model, views_data_loader, args.epoch, optimizer, args.show_epoch,
@@ -80,15 +79,16 @@ class Trainer(object):
         if not os.path.exists(self.model_save_dir):
             os.makedirs(self.model_save_dir)
 
-        train_partial_labels_np = train_partial_labels.numpy().copy()
-        train_pred_np = train_partial_labels_np.copy()
-        train_lp_np = train_partial_labels_np.copy()
+        if args.using_lp:
+            train_partial_labels_np = train_partial_labels.numpy().copy()
+            train_pred_np = train_partial_labels_np.copy()
+            train_lp_np = train_partial_labels_np.copy()
 
-        for id, view_feature in train_features.items():
-            view_feature = view_feature.numpy()
-            Wn += build_graph(view_feature, k=args.neighbors_num, args=args)
+            for id, view_feature in train_features.items():
+                view_feature = view_feature.numpy()
+                Wn += build_graph(view_feature, k=args.neighbors_num, args=args)
 
-        L = estimating_label_correlation_matrix(train_partial_labels_np)
+            L = estimating_label_correlation_matrix(train_partial_labels_np)
 
         for epoch in range(self.epoch):
             self.model.train()
@@ -162,7 +162,7 @@ class Trainer(object):
                                                   self.device, is_eval=False, args=args)
 
             # evaluation
-            if epoch % self.show_epoch == 0:
+            if epoch % self.show_epoch == 0 and args.is_test_in_train:
                 metrics_results, _ = test(self.model, test_features, test_labels,
                                                   self.device, is_eval=True, args=args)
 
@@ -179,8 +179,8 @@ class Trainer(object):
                     best_F1, best_epoch = metrics_results[6][1], epoch
 
                 metrics = ['hamming_loss', 'avg_precision', 'one_error', 'ranking_loss', 'coverage', 'macrof1',
-                           'microf1', ]
-                for i in range(6):
+                           'microf1',]
+                for i in range(7):
                     print(f"{metrics[i]}: {metrics_results[i][1]:.4f}", end='\t')
                 print("\n")
 

@@ -17,12 +17,15 @@ def run(args, save_name):
 
     writer = SummaryWriter()
 
-    label_num = np.size(labels, 1)
-    metrics_result_list = []
-    avg_metrics = {}
+    # label_num = np.size(labels, 1)
+    # metrics_result_list = []
+    # avg_metrics = {}
     fold_list = []
     rets = np.zeros((Fold_numbers, 7))
     for fold in range(Fold_numbers):
+        if fold == 1:
+            break
+
         TEST_SPLIT_INDEX = fold
         print('-' * 50 + '\n' + 'Fold: %s' % fold)
         train_features, train_labels, train_partial_labels, test_features, test_labels = split_data_set_by_idx(
@@ -51,7 +54,7 @@ def run(args, save_name):
 
         # training
         loss_list = train(model, device, views_data_loader, args, loss_coefficient,
-                     train_features, train_partial_labels, test_features, test_labels, WEIGHT_DECAY, fold=1)
+                     train_features, train_partial_labels, test_features, test_labels, fold=1)
         fold_list.append(loss_list)
 
         metrics_results, _ = test(model, test_features, test_labels, device, is_eval=True, args=args)
@@ -61,31 +64,35 @@ def run(args, save_name):
             rets[fold][i] = m[1]
 
         # show results
-        for m in metrics_results:
-            if m[0] in avg_metrics:
-                avg_metrics[m[0]] += m[1]
-            else:
-                avg_metrics[m[0]] = m[1]
+        # for m in metrics_results:
+        #     if m[0] in avg_metrics:
+        #         avg_metrics[m[0]] += m[1]
+        #     else:
+        #         avg_metrics[m[0]] = m[1]
 
-        metrics_result_list.append(metrics_results)
+        # metrics_result_list.append(metrics_results)
 
     # Draw figures
-    metrics_keys = ["ML_loss", "Hamming", "Average", "Ranking", "Coverage", "MacroF1", "MicroF1", "OneError"]
-    up_keys = ["Average", "MacroF1", "MicroF1"]
-    for epoch in range(len(fold_list[0])):
-        for key in metrics_keys:
-            matrics_vals = 0.0
-            for fold in range(len(fold_list)):
-                matrics_vals += fold_list[fold][epoch][key]
-            matrics_vals = matrics_vals / len(fold_list)
-            if key in up_keys:
-                writer.add_scalar(f"UP/{key}", matrics_vals, epoch)  # log
-            else:
-                writer.add_scalar(f"Down/{key}", matrics_vals, epoch)  # log
+    if args.is_test_in_train:
+        metrics_keys = ["ML_loss", "Hamming", "Average", "Ranking", "Coverage", "MacroF1", "MicroF1", "OneError"]
+        up_keys = ["Average", "MacroF1", "MicroF1"]
+        for epoch in range(len(fold_list[0])):
+            for key in metrics_keys:
+                matrics_vals = 0.0
+                for fold in range(len(fold_list)):
+                    matrics_vals += fold_list[fold][epoch][key]
+                matrics_vals = matrics_vals / len(fold_list)
+                if key in up_keys:
+                    writer.add_scalar(f"UP/{key}", matrics_vals, epoch)  # log
+                else:
+                    writer.add_scalar(f"Down/{key}", matrics_vals, epoch)  # log
 
     print("\n------------summary--------------")
-    means = np.mean(rets, axis=0)
-    stds = np.std(rets, axis=0)
+    # means = np.mean(rets, axis=0)
+    # stds = np.std(rets, axis=0)
+
+    means = np.mean(rets, axis=0)*5
+    stds = np.std(rets, axis=0)*5
     metrics = ['hamming_loss', 'avg_precision', 'one_error', 'ranking_loss', 'coverage', 'macrof1', 'microf1',]
     with open(save_name, "w") as f:
         for i, _ in enumerate(means):
@@ -130,11 +137,21 @@ if __name__ == '__main__':
 
     # tune parameters
     # datanames = ['yeast.mat', 'scene.mat', 'Pascal.mat',  'emotions.mat', 'Corel5k.mat', 'Mirflickr.mat', 'Espgame.mat']
-    # datanames = ['yeast', 'scene', 'emotions', ]  # 'Pascal']
-    # datanames = ['emotions']
-    # datanames = ['Corel5k']  # 20
-    datanames = ['emotions']
+    # datanames = ['yeast', 'scene', 'emotions', ]  # epoch25 / latent64 / lr 1e-3
+        # self.common_feature_dim = 256
+        # self.latent_dim = 6  # 小数据集 64
+        # self.embedding_dim = 512  # 极其重要
+        # self.keep_prob = 0.5
+        # self.scale_coeff = 1.0
 
+    # datanames = ['emotions']
+    datanames = ['Pascal']
+    # datanames = ['Corel5k']  # bug
+    # datanames = ['Espgame']
+    # datanames = ['Mirflickr']
+    # datanames = ['Espgame']
+
+    # lrs = [1e-2, 1e-3, 1e-4, 1e-5]
     lrs = [1e-3]
     etas = [5e-3]
 

@@ -75,7 +75,7 @@ class Label_VAE(VAE_basic):
 
         # self.fe0 = nn.Linear(label_dim, args.embedding_dim)
         self.label_embedding_layer = label_embedding_layer
-        self.encoder = MLP(in_features=args.embedding_dim, out_features=out_features, hidden_features=[512, 256],
+        self.encoder = MLP(in_features=args.embedding_dim, out_features=out_features, hidden_features=[256],
                               batchNorm=True, nonlinearity='leaky_relu')
 
         self.mu = nn.Linear(out_features, args.latent_dim)
@@ -83,7 +83,7 @@ class Label_VAE(VAE_basic):
         self.mu_batchnorm = nn.BatchNorm1d(args.latent_dim)
         self.sigma_batchnorm = nn.BatchNorm1d(args.latent_dim)
 
-        self.decoder = MLP(in_features=args.latent_dim, out_features=args.embedding_dim, hidden_features=[512],
+        self.decoder = MLP(in_features=args.latent_dim, out_features=args.embedding_dim, hidden_features=[256],
                            batchNorm=True, nonlinearity='leaky_relu')
 
     def encode(self, x):
@@ -110,16 +110,16 @@ class Feature_VAE(VAE_basic):
     def __init__(self, in_features, out_features, hidden_features, label_dim, view_count, args):
         super(Feature_VAE, self).__init__(args)
         # encoder
-        self.encoder = MLP(in_features, out_features, hidden_features
-                              ,batchNorm=True, nonlinearity='leaky_relu')
+        self.encoder = MLP(in_features=in_features, out_features=out_features, hidden_features=hidden_features,
+                           batchNorm=True, nonlinearity='leaky_relu')
         self.mu = nn.Linear(out_features, args.latent_dim)
         self.logvar = nn.Linear(out_features, args.latent_dim)
         self.mu_batchnorm = nn.BatchNorm1d(args.latent_dim)
         self.sigma_batchnorm = nn.BatchNorm1d(args.latent_dim)
 
         # decoder
-        self.decoder = MLP(in_features=in_features + args.latent_dim,
-                           out_features=args.embedding_dim, hidden_features=[512])
+        self.decoder = MLP(in_features=in_features + args.latent_dim, out_features=args.embedding_dim, hidden_features=[512],
+                           batchNorm=True, nonlinearity='leaky_relu')
 
         # self.feat_mp_mu = nn.Linear(args.embedding_dim, label_dim)
 

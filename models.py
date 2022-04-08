@@ -78,7 +78,8 @@ class ModelEmbedding(nn.Module):
         self.fc_comm_extract = nn.Linear(common_feature_dim, common_feature_dim)
 
         # feature VAE
-        self.feat_forward = Feature_VAE(in_features=512*(view_count + 1), out_features=256,
+        self.feat_forward = Feature_VAE(in_features=args.common_feature_dim*(view_count + 1),
+                                        out_features=256,
                                            hidden_features=[256, 512], label_dim=label_dim,
                                            view_count=view_count, args=args)
 
@@ -122,7 +123,7 @@ class ModelEmbedding(nn.Module):
         # view-specific feature extracts
         view_count = len(self.view_blocks)
         view_features_dict = self._extract_view_features(feature)
-        comm_features = torch.zeros(feature[0].shape[0], view_count, 512).to(self.device)
+        comm_features = torch.zeros(feature[0].shape[0], view_count, self.common_feature_dim).to(self.device)
         view_features = torch.Tensor([]).to(self.device)
 
         # common feature
@@ -140,7 +141,7 @@ class ModelEmbedding(nn.Module):
             comm_features = torch.mean(comm_features, dim=1)
 
         feature_embedding = torch.cat((view_features, comm_features), dim=1)
-        
+
         label_emb, label_z, label_mu, label_logvar = self.label_forward(label)
         feat_emb, feat_mu, feat_logvar = self.feat_forward(feature_embedding)
 
