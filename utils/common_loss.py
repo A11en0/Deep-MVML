@@ -55,13 +55,13 @@ def _log_normal_mixture(z, m, v, mask=None):
     return log_prob
 
 def log_normal(x, m, v):
-    log_prob = (-0.5 * (torch.log(v) + (x-m).pow(2) / v)).sum(-1)
+    log_prob = (-0.5 * (torch.log(v + 1e-6) + (x-m).pow(2) / v)).sum(-1)
     return log_prob
 
 def log_mean_exp(x, mask):
-    return log_sum_exp(x, mask) - torch.log(mask.sum(1))
+    return log_sum_exp(x, mask) - torch.log(mask.sum(1) + 1e-6)
 
 def log_sum_exp(x, mask):
     max_x = torch.max(x, 1)[0]
     new_x = x - max_x.unsqueeze(1).expand_as(x)
-    return max_x + (new_x.exp().sum(1)).log()
+    return max_x + (new_x.exp().sum(1) + 1e-6).log()

@@ -145,8 +145,8 @@ class ModelEmbedding(nn.Module):
         label_emb, label_z, label_mu, label_logvar = self.label_forward(label)
         feat_emb, feat_mu, feat_logvar = self.feat_forward(feature_embedding)
 
-        label_out = torch.matmul(label_emb, embs).sigmoid()
-        feat_out = torch.matmul(feat_emb, embs).sigmoid()
+        label_out = torch.sigmoid(torch.matmul(label_emb, embs))
+        feat_out = torch.sigmoid(torch.matmul(feat_emb, embs))
 
         return label_out, label_mu, label_logvar, feat_out, feat_mu, feat_logvar
 

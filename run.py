@@ -21,7 +21,7 @@ def run(args, save_name):
     # metrics_result_list = []
     # avg_metrics = {}
     fold_list = []
-    rets = np.zeros((Fold_numbers, 7))
+    rets = np.zeros((Fold_numbers, 11))
     for fold in range(Fold_numbers):
         if fold == 1:
             break
@@ -52,16 +52,16 @@ def run(args, save_name):
         else:
             model = Model(view_blocks, args.common_feature_dim, label_nums, device, args).to(device)
 
+        print(model)
         # training
         loss_list = train(model, device, views_data_loader, args, loss_coefficient,
                      train_features, train_partial_labels, test_features, test_labels, fold=1)
         fold_list.append(loss_list)
 
         metrics_results, _ = test(model, test_features, test_labels, device, is_eval=True, args=args)
-        # pprint(metrics_results)
 
-        for i, m in enumerate(metrics_results):
-            rets[fold][i] = m[1]
+        for i, key in enumerate(metrics_results):
+            rets[fold][i] = metrics_results[key]
 
         # show results
         # for m in metrics_results:
@@ -73,37 +73,30 @@ def run(args, save_name):
         # metrics_result_list.append(metrics_results)
 
     # Draw figures
-    if args.is_test_in_train:
-        metrics_keys = ["ML_loss", "Hamming", "Average", "Ranking", "Coverage", "MacroF1", "MicroF1", "OneError"]
-        up_keys = ["Average", "MacroF1", "MicroF1"]
-        for epoch in range(len(fold_list[0])):
-            for key in metrics_keys:
-                matrics_vals = 0.0
-                for fold in range(len(fold_list)):
-                    matrics_vals += fold_list[fold][epoch][key]
-                matrics_vals = matrics_vals / len(fold_list)
-                if key in up_keys:
-                    writer.add_scalar(f"UP/{key}", matrics_vals, epoch)  # log
-                else:
-                    writer.add_scalar(f"Down/{key}", matrics_vals, epoch)  # log
+    # if args.is_test_in_train:
+    #     metrics_keys = ["ML_loss", "Hamming", "Average", "Ranking", "Coverage", "MacroF1", "MicroF1", "OneError"]
+    #     up_keys = ["Average", "MacroF1", "MicroF1"]
+    #     for epoch in range(len(fold_list[0])):
+    #         for key in metrics_keys:
+    #             matrics_vals = 0.0
+    #             for fold in range(len(fold_list)):
+    #                 matrics_vals += fold_list[fold][epoch][key]
+    #             matrics_vals = matrics_vals / len(fold_list)
+    #             if key in up_keys:
+    #                 writer.add_scalar(f"UP/{key}", matrics_vals, epoch)  # log
+    #             else:
+    #                 writer.add_scalar(f"Down/{key}", matrics_vals, epoch)  # log
 
     print("\n------------summary--------------")
-    # means = np.mean(rets, axis=0)
-    # stds = np.std(rets, axis=0)
-
     means = np.mean(rets, axis=0)*5
     stds = np.std(rets, axis=0)*5
-    metrics = ['hamming_loss', 'avg_precision', 'one_error', 'ranking_loss', 'coverage', 'macrof1', 'microf1',]
+
+    metrics_list = list(metrics_results.keys())
     with open(save_name, "w") as f:
         for i, _ in enumerate(means):
-            print("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics[i], means=means[i], std=stds[i]))
-            f.write("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics[i], means=means[i], std=stds[i]))
+            print("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=means[i], std=stds[i]))
+            f.write("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=means[i], std=stds[i]))
             f.write("\n")
-
-    #     for k, v in avg_metrics.items():
-    #         print("{metric}\t{value:.4f}".format(metric=k, value=v / Fold_numbers))
-    #         f.write("{metric}\t{value:.4f}".format(metric=k, value=v / Fold_numbers))
-    #         f.write("\n")
 
     writer.flush()
     writer.close()
@@ -144,8 +137,8 @@ if __name__ == '__main__':
         # self.keep_prob = 0.5
         # self.scale_coeff = 1.0
 
-    # datanames = ['emotions']
-    datanames = ['Pascal']
+    datanames = ['Emotions']
+    # datanames = ['Pascal']
     # datanames = ['Corel5k']  # bug
     # datanames = ['Espgame']
     # datanames = ['Mirflickr']
@@ -173,3 +166,4 @@ if __name__ == '__main__':
                                 f'kl{args.coef_kl}_epoch{args.epoch}_lr{args.lr}_com{args.common_feature_dim}_' \
                                 f'lat{args.latent_dim}_p{args.noise_rate}.txt'
                     boot(args, save_dir, file_name)
+

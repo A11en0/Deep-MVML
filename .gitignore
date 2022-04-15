@@ -1,6 +1,6 @@
 __pycache__
 /model_save_dir
 /runs
-/datasets
+/datasets_old
 results*
 /.idea

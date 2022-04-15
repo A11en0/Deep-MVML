@@ -1,6 +1,5 @@
 # -*- coding: UTF-8 -*-
 import random
-
 from scipy.io import loadmat
 import numpy as np
 from sklearn import preprocessing
@@ -26,8 +25,8 @@ def gen_idx_list(length):
 def load_mat_data_v1(file_name, need_zscore=False):
     try:
         dataset = loadmat(file_name)
-        data = dataset['data'].T
-        target = dataset['target'].T
+        data = dataset['data']
+        target = dataset['target']
         target = np.array(target, dtype=np.float32)
         target = torch.from_numpy(target)
         idx_list = gen_idx_list(target.shape[0])
@@ -126,21 +125,27 @@ def split_data_set_by_idx(features, labels, idx_list, test_split_id, args):
     # train_partial_labels = torch.Tensor(random_noise(train_labels.numpy().copy(), partial_rate))
     return train_features, train_labels, train_partial_labels, test_features, test_labels
 
-
 class ViewsDataset(Dataset):
     def __init__(self, views_features, labels, device='cpu'):
         self.views_features = views_features
         self.labels = labels
         self.device = device
+        self.features = []
+        for item in range(labels.size(0)):
+            feature = {}
+            for key, value in self.views_features.items():
+                feature[key] = value[item]
+            self.features.append(feature)
 
     def __len__(self):
         return self.labels.shape[0]
 
     def __getitem__(self, item):
-        feature = {}
-        for key, value in self.views_features.items():
-            feature[key] = value[item]
-        return feature, self.labels[item], item
+        return self.features[item], self.labels[item], item
+        # feature = {}
+        # for key, value in self.views_features.items():
+        #     feature[key] = value[item]
+        # return feature, self.labels[item], item
 
 class MergeDataset(Dataset):
     def __init__(self, views_features, labels):
