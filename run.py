@@ -101,9 +101,6 @@ def run(device, args, save_dir, file_name):
                                                            std=stds[0, :][i]))
             f.write("\n")
 
-            # print("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=means[i], std=stds[i]))
-            # f.write("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=means[i], std=stds[i]))
-
     # print("\n------------summary--------------")
     # for i in range(means.shape[0]):
     #     for j in range(means.shape[1]):
@@ -111,19 +108,6 @@ def run(device, args, save_dir, file_name):
     #         std = stds[i][j]
     #         print(f"{mu:.4f} +- {std:.4f} \t")
     #     print()
-    #
-    # print("\n------------summary--------------")
-    # means = np.mean(rets, axis=0)
-    # stds = np.std(rets, axis=0)
-    # metrics_list = list(metrics_results.keys())
-    # with open(save_name, "w") as f:
-    #     for i, _ in enumerate(means):
-    #         print("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=means[i], std=stds[i]))
-    #         f.write("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=means[i], std=stds[i]))
-    #         f.write("\n")
-
-    # writer.flush()
-    # writer.close()
 
 
 if __name__ == '__main__':
@@ -132,8 +116,8 @@ if __name__ == '__main__':
     # setting random seeds
     init_random_seed(args.seed)
 
-    # device = torch.device("cuda") if args.cuda else torch.device("cpu")
-    device = 'cpu'
+    device = torch.device("cuda") if args.cuda else torch.device("cpu")
+    # device = 'cpu'
 
     # lrs = [1e-2, 5e-2, 2e-3, 6e-3, 5e-3, 1e-4, 5e-4, 1e-5, 1e-6]
     lrs = [1e-3]
@@ -141,9 +125,9 @@ if __name__ == '__main__':
     # noise_rates = [0.3, 0.5, 0.7]
     noise_rates = [0.0]
 
-    # datanames = ['Emotions', 'Scene', 'Yeast']
+    datanames = ['Emotions', 'Scene', 'Yeast']
     # datanames = ['Yeast']
-    datanames = ['Scene']
+    # datanames = ['Scene']
     # datanames = ['Pascal']
     # datanames = ['Iaprtc12']
 
@@ -158,11 +142,10 @@ if __name__ == '__main__':
         'common_embedding_dim': [64, 128, 256, 512],
     }
 
-    MAX_EVALS = 100
-
+    MAX_EVALS = 15
     best_score = 0
     best_hyperparams = {}
-
+    
     for dataname in datanames:
         for p in noise_rates:
             for lr in lrs:
