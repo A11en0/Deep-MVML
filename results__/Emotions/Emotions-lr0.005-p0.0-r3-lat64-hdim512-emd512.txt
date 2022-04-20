@@ -1,0 +1,11 @@
+hamming_loss	0.1989±0.0193
+avg_precision	0.7944±0.0234
+one_error	0.2813±0.0450
+ranking_loss	0.1701±0.0179
+coverage	0.2955±0.0223
+macro_f1	0.6764±0.0186
+micro_f1	0.6826±0.0259
+macro_precision	0.6792±0.0304
+micro_precision	0.6734±0.0343
+macro_recall	0.6744±0.0168
+micro_recall	0.6926±0.0219

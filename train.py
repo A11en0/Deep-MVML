@@ -1,12 +1,10 @@
 # -*- coding: UTF-8 -*-
 import os
 from functools import reduce
-from itertools import chain
 
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
-from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 
 from utils.loss import Loss
@@ -29,9 +27,8 @@ def test(model, features, labels, device, model_state_path=None, is_eval=False):
 
     # prediction
     with torch.no_grad():
-        outputs, xrs, hs, zs = model(features)
-        # outputs = model(features)
-        outputs = reduce(lambda x, y: x + y, outputs) / len(outputs)
+        feat_outs, label_out, hs, zs = model(features, labels)
+        outputs = reduce(lambda x, y: x + y, feat_outs) / len(feat_outs)
 
     outputs = outputs.cpu().numpy()
     preds = (outputs > 0.5).astype(int)
@@ -80,7 +77,7 @@ class Trainer(object):
 
                 labels = labels.to(self.device)
 
-                cls, xrs, hs, zs = self.model(inputs)
+                feat_outs, label_out, hs, zs = self.model(inputs, labels)
                 _cl_loss = []
                 _cls_loss = []
 
@@ -88,22 +85,31 @@ class Trainer(object):
                 for v in range(self.model.view):
                     for w in range(v + 1, self.model.view):
                         _cl_loss.append(criterion.info_nce_loss(hs[v], hs[w]))
+                        # _cl_loss.append(criterion.info_nce_loss(zs[v], zs[w]))
+                        # _cl_loss.append(criterion.info_nce_loss(xrs[v], xrs[w]))
                     # _cl_loss.append(mse(xs[v], xrs[v]))
                 cl_loss = sum(_cl_loss)
 
                 # classification loss
-                for v in range(len(cls)):
-                    _cls_loss.append(F.binary_cross_entropy(cls[v], labels))
-                cls_loss = sum(_cls_loss)
+                for v in range(len(feat_outs)):
+                    _cls_loss.append(F.binary_cross_entropy(feat_outs[v], labels))
+                nll_loss_x = sum(_cls_loss)
+                nll_loss_y = F.binary_cross_entropy(label_out, labels)
+                ml_loss = 0.5*(nll_loss_x + nll_loss_y)
 
-                loss = cl_loss + cls_loss
+                # for v in range(len(cls)):
+                #     _cls_loss.append(F.binary_cross_entropy(cls[v], labels))
+                # cls_loss = sum(_cls_loss)
+
+                loss = self.args.coef_cl*cl_loss + self.args.coef_ml*ml_loss
 
                 # reconstruction loss
                 # for v in range(len(xrs)):
                 #     loss_list.append(criterion(inputs[v], xrs[v]))
                 # loss = sum(loss_list)
 
-                print_str = f'Epoch: {epoch}\t Loss: {loss.item():.4f}\t'
+                print_str = f'Epoch: {epoch}\t Loss: {loss.item():.4f}\t CL Loss: {self.args.coef_cl*cl_loss:.4f}' \
+                            f'\tML Loss: {self.args.coef_ml*ml_loss:.4f}'
 
                 # show loss info
                 if epoch % self.show_epoch == 0 and step == 0:

@@ -1,26 +1,30 @@
 # -*- coding: UTF-8 -*-
 import os
-import random
-from functools import reduce
-
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
 # from torch.utils.tensorboard import SummaryWriter
 
 from config import *
-from layers.net_H import FusionNet, UncertaintyNet
 from model import Network
-from models_bak import TMC
 from train import test, Trainer
 from utils.common_tools import split_data_set_by_idx, ViewsDataset, load_mat_data, init_random_seed
 
 
 def run(device, args, save_dir, file_name):
     print('*' * 30)
+    print('seed:\t', args.seed)
     print('dataset:\t', args.DATA_SET_NAME)
+    print('latent dim:\t', args.latent_dim)
+    print('high feature dim:\t', args.high_feature_dim)
+    print('embedding dim:\t', args.embedding_dim)
+    print('coef_cl:\t', args.coef_cl)
+    print('coef_ml:\t', args.coef_ml)
     print('optimizer:\t Adam')
     print('*' * 30)
+
+    # setting random seeds
+    init_random_seed(args.seed)
 
     save_name = save_dir + file_name
 
@@ -54,17 +58,14 @@ def run(device, args, save_dir, file_name):
         num_view = len(view_code_list)
         class_num = train_labels.shape[1]
         input_size = view_feature_dim_list
-        latent_dim = args.latent_dim
-        high_feature_dim = args.high_feature_dim
-        embedding_dim = args.embedding_dim
-        common_embedding_dim = args.common_embedding_dim
 
         # load model
         # model = Network(view_num, input_size, features_dim, high_feature_dim, class_num, device).to(device)
 
-        model = Network(num_view, input_size, latent_dim, high_feature_dim,
-                 embedding_dim, common_embedding_dim, class_num, device).to(device)
+        model = Network(num_view, input_size, args.latent_dim, args.high_feature_dim,
+                 args.embedding_dim, class_num, device).to(device)
 
+        print(model)
         # training
         trainer = Trainer(model, args, device)
         loss_list = trainer.fit(views_data_loader, train_features, train_partial_labels, test_features, test_labels,
@@ -100,72 +101,81 @@ def run(device, args, save_dir, file_name):
             f.write("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=means[0, :][i],
                                                            std=stds[0, :][i]))
             f.write("\n")
-
-    # print("\n------------summary--------------")
-    # for i in range(means.shape[0]):
-    #     for j in range(means.shape[1]):
-    #         mu = means[i][j]
-    #         std = stds[i][j]
-    #         print(f"{mu:.4f} +- {std:.4f} \t")
-    #     print()
+        f.write(str(_index[0]))
 
 
 if __name__ == '__main__':
     args = Args()
 
-    # setting random seeds
-    init_random_seed(args.seed)
-
     device = torch.device("cuda") if args.cuda else torch.device("cpu")
     # device = 'cpu'
 
     # lrs = [1e-2, 5e-2, 2e-3, 6e-3, 5e-3, 1e-4, 5e-4, 1e-5, 1e-6]
-    lrs = [1e-3]
+    lrs = [5e-3]
 
     # noise_rates = [0.3, 0.5, 0.7]
     noise_rates = [0.0]
 
-    datanames = ['Emotions', 'Scene', 'Yeast']
-    # datanames = ['Yeast']
+    # datanames = ['Emotions', 'Scene', 'Yeast', 'Pascal', 'Iaprtc12', 'Corel5k', 'Mirflickr', 'Espgame']
+    datanames = ['Emotions', 'Yeast', 'Scene', 'Pascal']
+
+    # datanames = ['Emotions']
     # datanames = ['Scene']
+    # datanames = ['Yeast']
     # datanames = ['Pascal']
     # datanames = ['Iaprtc12']
-
     # datanames = ['Corel5k']
     # datanames = ['Mirflickr']
     # datanames = ['Espgame']
 
     param_grid = {
-        'latent_dim': [64, 128, 256, 512],
-        'high_feature_dim': [64, 128, 256, 512],
-        'embedding_dim': [64, 128, 256, 512],
-        'common_embedding_dim': [64, 128, 256, 512],
+        'latent_dim': [6],
+        'high_feature_dim': [256],
+        'embedding_dim': [256],
     }
 
-    MAX_EVALS = 15
+    MAX_EVALS = 1
     best_score = 0
     best_hyperparams = {}
     
     for dataname in datanames:
         for p in noise_rates:
             for lr in lrs:
-                for i in range(MAX_EVALS):
-                    random.seed(i)  # 设置随机种子，每次搜索设置不同的种子，若种子固定，那每次选取的超参都是一样的
+                for coef_cl in np.arange(0, 1, 0.2):
+
+                # for i in range(MAX_EVALS):
+
                     args.DATA_SET_NAME = dataname
                     args.noise_rate = p
                     args.lr = lr
 
-                    # 随机搜索
-                    random_params = {k: random.sample(v, 1)[0] for k, v in param_grid.items()}
+                #     # Grid Search
+                #     for lat in param_grid['latent_dim']:
+                #         for hi in param_grid['high_feature_dim']:
+                #             for emd in param_grid['embedding_dim']:
+                #                 args.latent_dim = lat
+                #                 args.high_feature_dim = hi
+                #                 args.embedding_dim = emd
+                #
+                #                 save_dir = f'results/{dataname}/'
+                #                 save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-p{args.noise_rate}-r{args.noise_num}-' \
+                #                             f'lat{args.latent_dim}-hdim{args.high_feature_dim}-emd{args.embedding_dim}' \
+                #                             f'.txt-cl-ml'
+                #                 run(device, args, save_dir, save_name)
 
-                    args.latent_dim = random_params['latent_dim']
-                    args.high_feature_dim = random_params['high_feature_dim']
-                    args.embedding_dim = random_params['embedding_dim']
-                    args.common_embedding_dim = random_params['common_embedding_dim']
+                    args.coef_cl = coef_cl
+                    args.coef_ml = 1 - args.coef_cl
 
-                    save_dir = f'results/{dataname}/'
-                    save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-p{args.noise_rate}-r{args.noise_num}-lat{args.latent_dim}-hdim{args.high_feature_dim}-emd{args.embedding_dim}-comm{args.embedding_dim}.txt'
+                    save_dir = f'results/{args.DATA_SET_NAME}/'
+                    save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-p{args.noise_rate}-r{args.noise_num}-' \
+                                f'lat{args.latent_dim}-hdim{args.high_feature_dim}-emd{args.embedding_dim}-' \
+                                f'coef_cl{args.coef_cl}.txt'
                     run(device, args, save_dir, save_name)
 
-
+                    # 随机搜索
+                    # random_params = {k: random.sample(v, 1)[0] for k, v in param_grid.items()}
+                    # args.latent_dim = random_params['latent_dim']
+                    # args.high_feature_dim = random_params['high_feature_dim']
+                    # args.embedding_dim = random_params['embedding_dim']
+                    # args.common_embedding_dim = random_params['common_embedding_dim']
 

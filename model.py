@@ -13,6 +13,7 @@ class Encoder(nn.Module):
             nn.ReLU(),
             nn.Linear(512, feature_dim),
         )
+
         # self.encoder = nn.Sequential(
         #     nn.Linear(input_dim, 500),
         #     nn.ReLU(),
@@ -53,7 +54,7 @@ class Decoder(nn.Module):
 
 class Network(nn.Module):
     def __init__(self, num_view, input_size, latent_dim, high_feature_dim,
-                 embedding_dim, common_embedding_dim, class_num, device):
+                 embedding_dim, class_num, device):
         super(Network, self).__init__()
         self.encoders = []
         self.decoders = []
@@ -62,6 +63,13 @@ class Network(nn.Module):
             self.decoders.append(Decoder(embedding_dim, latent_dim).to(device))
         self.encoders = nn.ModuleList(self.encoders)
         self.decoders = nn.ModuleList(self.decoders)
+
+        # label embedding
+        self.label_emb_layer = nn.Linear(class_num, embedding_dim)
+
+        # label AE
+        self.label_encoder = Encoder(embedding_dim, latent_dim).to(device)
+        self.label_decoder = Decoder(embedding_dim, latent_dim).to(device)
 
         self.feature_contrastive_module = nn.Sequential(
             nn.Linear(latent_dim, high_feature_dim),
@@ -72,24 +80,27 @@ class Network(nn.Module):
         #     nn.Softmax(dim=1)
         # )
 
-        self.classifier = nn.Sequential(
-            # nn.Linear(num_view * embedding_dim, common_embedding_dim),
-            nn.Linear(embedding_dim, common_embedding_dim),
-            nn.BatchNorm1d(common_embedding_dim),
-            nn.ReLU(inplace=True),
-            nn.Dropout(),
-            nn.Linear(common_embedding_dim, class_num),
-            nn.BatchNorm1d(class_num),
-            nn.Sigmoid()
-        )
+        # self.classifier = nn.Sequential(
+        #     # nn.Linear(num_view * embedding_dim, common_embedding_dim),
+        #     nn.Linear(embedding_dim, common_embedding_dim),
+        #     nn.BatchNorm1d(common_embedding_dim),
+        #     nn.ReLU(inplace=True),
+        #     nn.Dropout(),
+        #     nn.Linear(common_embedding_dim, class_num),
+        #     nn.BatchNorm1d(class_num),
+        #     nn.Sigmoid()
+        # )
 
         self.view = num_view
 
-    def forward(self, xs):
-        xrs = []
+    def forward(self, xs, labels):
+        feat_embs = []
+        feat_outs = []
         hs = []
         zs = []
         cls = []
+        embs = self.label_emb_layer.weight  # label embedding
+
         for v in range(self.view):
             x = xs[v]
             z = self.encoders[v](x)
@@ -97,9 +108,18 @@ class Network(nn.Module):
             xr = self.decoders[v](z)
             zs.append(z)
             hs.append(h)
-            xrs.append(xr)
-            cls.append(self.classifier(xr))
-        return cls, xrs, hs, zs
+            feat_embs.append(xr)
+            # cls.append(self.classifier(xr))
+
+        label_emb = self.label_emb_layer(labels)
+        z_label = self.label_encoder(label_emb)
+        label_emb = self.label_decoder(z_label)
+        label_out = torch.sigmoid(torch.matmul(label_emb, embs))
+
+        for v in range(self.view):
+            feat_outs.append(torch.sigmoid(torch.matmul(feat_embs[v], embs)))
+
+        return feat_outs, label_out, hs, zs
 
     def forward_old(self, xs):
         hs = []

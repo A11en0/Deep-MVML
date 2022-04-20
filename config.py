@@ -3,10 +3,11 @@
 Fold_numbers = 5
 TEST_SPLIT_INDEX = 1
 
+
 class Args:
     def __init__(self):
         self.DATA_ROOT = '/home/allen/Datasets/MVML'
-        self.DATA_SET_NAME = 'emotions'
+        self.DATA_SET_NAME = 'Emotions'
         self.epochs = 100
         self.show_epoch = 1
         # self.epoch_used_for_final_result = 4
@@ -27,12 +28,12 @@ class Args:
         self.temperature_f = 0.5
         self.temperature_l = 1.0
 
-        self.latent_dim = 128
+        self.latent_dim = 64  # 512 related-to label dim
         self.high_feature_dim = 256  # 256
-        self.embedding_dim = 512
-        self.common_embedding_dim = 512
+        self.embedding_dim = 256  # 256
+
+        self.coef_cl = 0.5
+        self.coef_ml = 0.5
 
         self.keep_prob = 0.5
         self.scale_coeff = 1.0
-
-

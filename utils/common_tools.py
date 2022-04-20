@@ -1,4 +1,5 @@
 # -*- coding: UTF-8 -*-
+import os
 import random
 
 from scipy.io import loadmat
@@ -145,13 +146,12 @@ def read_mat_data(file_name, need_zscore=True):
 
 def init_random_seed(seed):
     torch.manual_seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
     np.random.seed(seed)  # Numpy module.
-    # random.seed(seed)  # Python random module.
-    # torch.backends.cudnn.benchmark = False
-    # torch.backends.cudnn.deterministic = True
-
-
+    random.seed(seed)  # Python random module.
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
 
 
