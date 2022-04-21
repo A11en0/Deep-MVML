@@ -70,12 +70,12 @@ def run(device, args, save_dir, file_name):
         print(model)
         # training
         trainer = Trainer(model, args, device)
-        loss_list = trainer.fit(views_data_loader, train_features, train_partial_labels, test_features, test_labels,
+        loss_list, weight_var = trainer.fit(views_data_loader, train_features, train_partial_labels, test_features, test_labels,
                                 class_num, fold)
 
         fold_list.append(loss_list)
 
-        metrics_results, _ = test(model, test_features, test_labels, device, is_eval=True)
+        metrics_results, _ = test(model, test_features, test_labels, weight_var, device, is_eval=True)
 
         for i, key in enumerate(metrics_results):
             rets[fold][i] = metrics_results[key]
@@ -113,7 +113,8 @@ if __name__ == '__main__':
     # device = 'cpu'
 
     # lrs = [1e-2, 5e-2, 2e-3, 6e-3, 5e-3, 1e-4, 5e-4, 1e-5, 1e-6]
-    lrs = [5e-3]
+    # lrs = [5e-4, 5e-6, 6e-7, 3e-8, 6e-4, 6e-4, 3e-4, 5e-3, 5e-5]
+    lrs = [6e-4]
 
     # noise_rates = [0.0, 0.3, 0.5, 0.7]
     noise_rates = [0.0]
@@ -121,13 +122,16 @@ if __name__ == '__main__':
     # datanames = ['Emotions', 'Scene', 'Yeast', 'Pascal', 'Iaprtc12', 'Corel5k', 'Mirflickr', 'Espgame']
     # label_nums = [6, 6, 14, 20, 291, 260, 38, 268]
 
-    # datanames = ['Emotions', 'Yeast', 'Scene', 'Pascal']
-    datanames = ['Emotions']
-    label_nums = [64]
+    # datanames = ['Mirflickr', 'Emotions', 'Yeast', 'Scene', 'Pascal']
+    # label_nums = [64]
+
+    datanames = ['Iaprtc12', 'Corel5k','Espgame']
+    label_nums = [300]
+
+    # datanames = ['Emotions']
     # datanames = ['Scene']
     # datanames = ['Yeast']
     # datanames = ['Pascal']
-    # label_nums = [64]
     # datanames = ['Iaprtc12']
     # datanames = ['Corel5k']
     # datanames = ['Mirflickr']
@@ -152,7 +156,7 @@ if __name__ == '__main__':
                 args.DATA_SET_NAME = dataname
                 args.noise_rate = p
                 args.lr = lr
-                args.latent_dim = label_nums[i]
+                # args.latent_dim = label_nums[i]
                 #     # Grid Search
                 #     for lat in param_grid['latent_dim']:
                 #         for hi in param_grid['high_feature_dim']:
@@ -173,7 +177,7 @@ if __name__ == '__main__':
                 save_dir = f'results/{args.DATA_SET_NAME}/'
                 save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-p{args.noise_rate}-r{args.noise_num}-' \
                             f'lat{args.latent_dim}-hdim{args.high_feature_dim}-emd{args.embedding_dim}-' \
-                            f'coef_cl{args.coef_cl}.txt'
+                            f'coef_cl{args.coef_cl}.txt-'
 
                 run(device, args, save_dir, save_name)
 

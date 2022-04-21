@@ -23,7 +23,7 @@ class Encoder(nn.Module):
         #     nn.ReLU(),
         #     nn.Linear(2000, feature_dim),
         # )
-
+        
     def forward(self, x):
         return self.encoder(x)
 
@@ -56,38 +56,20 @@ class Network(nn.Module):
     def __init__(self, num_view, input_size, latent_dim, high_feature_dim,
                  embedding_dim, class_num, device):
         super(Network, self).__init__()
-        output_dim = 256
-
         self.encoders = []
         self.decoders = []
-        self.feature_mus = []
-        self.feature_logvars = []
         for v in range(num_view):
-            self.encoders.append(Encoder(input_size[v], output_dim).to(device))
+            self.encoders.append(Encoder(input_size[v], latent_dim).to(device))
             self.decoders.append(Decoder(embedding_dim, latent_dim).to(device))
-            self.feature_mus.append(nn.Linear(output_dim, latent_dim))
-            self.feature_logvars.append(nn.Linear(output_dim, latent_dim))
-            
         self.encoders = nn.ModuleList(self.encoders)
         self.decoders = nn.ModuleList(self.decoders)
-        self.feature_mus = nn.ModuleList(self.feature_mus)
-        self.feature_logvars = nn.ModuleList(self.feature_logvars)
-
-        # self.feature_mu = nn.Linear(output_dim, latent_dim)
-        # self.feature_logvar = nn.Linear(output_dim, latent_dim)
 
         # label embedding
         self.label_emb_layer = nn.Linear(class_num, embedding_dim)
 
         # label AE
-        self.label_encoder = Encoder(class_num, output_dim).to(device)
+        self.label_encoder = Encoder(embedding_dim, latent_dim).to(device)
         self.label_decoder = Decoder(embedding_dim, latent_dim).to(device)
-
-        # mu / logvar
-        self.label_mu = nn.Linear(output_dim, latent_dim)
-        self.label_logvar = nn.Linear(output_dim, latent_dim)
-        self.label_mu_batchnorm = nn.BatchNorm1d(latent_dim)
-        self.label_sigma_batchnorm = nn.BatchNorm1d(latent_dim)
 
         self.feature_contrastive_module = nn.Sequential(
             nn.Linear(latent_dim, high_feature_dim),
@@ -100,86 +82,47 @@ class Network(nn.Module):
 
         self.classifier = nn.Sequential(
             # nn.Linear(num_view * embedding_dim, common_embedding_dim),
-            nn.Linear(embedding_dim, class_num),
-            # nn.BatchNorm1d(128),
-            # nn.ReLU(inplace=True),
-            # nn.Dropout(),
-            # nn.Linear(128, class_num),
-            # nn.BatchNorm1d(class_num),
+            nn.Linear(embedding_dim, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(inplace=True),
+            nn.Dropout(),
+            nn.Linear(128, class_num),
+            nn.BatchNorm1d(class_num),
             nn.Sigmoid()
         )
 
         self.view = num_view
 
-    def reparameterize(self, mu, logvar):
-        std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
-        return mu + eps * std
-
-    def feature_forward(self, v, feature):
-        output = self.encoders[v](feature)
-        mu = self.feature_mus[v](output)
-        logvar = self.feature_logvars[v](output)
-        # x_z_label = torch.cat(label_emb, z_label], dim=1)
-        # mu = self.label_mu_batchnorm(mu)
-        # logvar = self.label_sigma_batchnorm(logvar)
-        z = self.reparameterize(mu, logvar)
-        return self.decoders[v](z), z, mu, logvar
-
-    def label_forward(self, labels):
-        # _label_emb = self.label_emb_layer(labels)
-        output = self.label_encoder(labels)
-        mu = self.label_mu(output)
-        logvar = self.label_logvar(output)
-        # x_z_label = torch.cat(label_emb, z_label], dim=1)
-        # mu = self.label_mu_batchnorm(mu)
-        # logvar = self.label_sigma_batchnorm(logvar)
-        z = self.reparameterize(mu, logvar)
-        return self.label_decoder(z), z, mu, logvar
-
     def forward(self, xs, labels):
         feat_embs = []
-        feat_mus = []
-        feat_logvars = []
         feat_outs = []
         hs = []
         zs = []
         cls = []
         embs = self.label_emb_layer.weight  # label embedding
 
-        # for v in range(self.view):
-        #     x = xs[v]
-        #     z = self.encoders[v](x)
-        #     h = normalize(self.feature_contrastive_module(z), dim=1)
-        #     # x_z = torch.cat([x, z], dim=1)
-        #     xr = self.decoders[v](z)
-        #     zs.append(z)
-        #     hs.append(h)
-        #     feat_embs.append(xr)
-            # cls.append(self.classifier(xr))
-
         for v in range(self.view):
             x = xs[v]
-            feat_emb, feat_z, feat_mu, feat_logvar = self.feature_forward(v, x)
-            h = normalize(self.feature_contrastive_module(feat_z), dim=1)
+            z = self.encoders[v](x)
+            h = normalize(self.feature_contrastive_module(z), dim=1)
             # x_z = torch.cat([x, z], dim=1)
-            # xr = self.decoders[v](z)
-            zs.append(feat_z)
+            xr = self.decoders[v](z)
+            zs.append(z)
             hs.append(h)
-            feat_mus.append(feat_mu)
-            feat_logvars.append(feat_logvar)
-            feat_embs.append(feat_emb)
+            feat_embs.append(xr)
+            cls.append(self.classifier(xr))
 
-        label_emb, label_z, label_mu, label_logvar = self.label_forward(labels)
-        label_out = self.classifier(label_emb)
-        # label_out = torch.sigmoid(torch.matmul(label_emb, embs))
+        _label_emb = self.label_emb_layer(labels)
+        z_label = self.label_encoder(_label_emb)
+        # x_z_label = torch.cat([_label_emb, z_label], dim=1)
+        label_emb = self.label_decoder(z_label)
+        label_out = torch.sigmoid(torch.matmul(label_emb, embs))
 
         for v in range(self.view):
-            feat_outs.append(self.classifier(feat_embs[v]))
-            # feat_outs.append(torch.sigmoid(torch.matmul(feat_embs[v], embs)))
+            feat_outs.append(torch.sigmoid(torch.matmul(feat_embs[v], embs)))
 
         # return cls, feat_embs, hs, zs
-        return feat_outs, feat_mus, feat_logvars, label_out, label_mu, label_logvar, hs
+        return feat_outs, label_out, hs, zs
 
     def forward_old(self, xs):
         hs = []

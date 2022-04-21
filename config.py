@@ -32,9 +32,10 @@ class Args:
         self.high_feature_dim = 256  # 256
         self.embedding_dim = 512  # 256
 
-        self.coef_cl = 1.0
+        self.coef_cl = 0.0
         self.coef_ml = 1.0
-        self.coef_kl = 3.0
+        # self.coef_kl = 3.0
+        self.gamma = 2.0
 
         self.keep_prob = 0.5
         self.scale_coeff = 1.0
