@@ -58,6 +58,8 @@ def run(device, args, save_dir, file_name):
         num_view = len(view_code_list)
         class_num = train_labels.shape[1]
         input_size = view_feature_dim_list
+        # 设置 latent_dim 为标签数
+        # args.latent_dim = class_num
 
         # load model
         # model = Network(view_num, input_size, features_dim, high_feature_dim, class_num, device).to(device)
@@ -113,42 +115,44 @@ if __name__ == '__main__':
     # lrs = [1e-2, 5e-2, 2e-3, 6e-3, 5e-3, 1e-4, 5e-4, 1e-5, 1e-6]
     lrs = [5e-3]
 
-    # noise_rates = [0.3, 0.5, 0.7]
+    # noise_rates = [0.0, 0.3, 0.5, 0.7]
     noise_rates = [0.0]
 
     # datanames = ['Emotions', 'Scene', 'Yeast', 'Pascal', 'Iaprtc12', 'Corel5k', 'Mirflickr', 'Espgame']
-    datanames = ['Emotions', 'Yeast', 'Scene', 'Pascal']
+    # label_nums = [6, 6, 14, 20, 291, 260, 38, 268]
 
-    # datanames = ['Emotions']
+    # datanames = ['Emotions', 'Yeast', 'Scene', 'Pascal']
+    datanames = ['Emotions']
+    label_nums = [64]
     # datanames = ['Scene']
     # datanames = ['Yeast']
     # datanames = ['Pascal']
+    # label_nums = [64]
     # datanames = ['Iaprtc12']
     # datanames = ['Corel5k']
     # datanames = ['Mirflickr']
     # datanames = ['Espgame']
 
-    param_grid = {
-        'latent_dim': [6],
-        'high_feature_dim': [256],
-        'embedding_dim': [256],
-    }
+    # param_grid = {
+    #     'latent_dim': [6],
+    #     'high_feature_dim': [256],
+    #     'embedding_dim': [256],
+    # }
 
     MAX_EVALS = 1
     best_score = 0
     best_hyperparams = {}
     
-    for dataname in datanames:
+    for i, dataname in enumerate(datanames):
         for p in noise_rates:
             for lr in lrs:
-                for coef_cl in np.arange(0, 1, 0.2):
-
+                # for coef_cl in np.arange(0, 1, 0.2):
                 # for i in range(MAX_EVALS):
 
-                    args.DATA_SET_NAME = dataname
-                    args.noise_rate = p
-                    args.lr = lr
-
+                args.DATA_SET_NAME = dataname
+                args.noise_rate = p
+                args.lr = lr
+                args.latent_dim = label_nums[i]
                 #     # Grid Search
                 #     for lat in param_grid['latent_dim']:
                 #         for hi in param_grid['high_feature_dim']:
@@ -163,19 +167,20 @@ if __name__ == '__main__':
                 #                             f'.txt-cl-ml'
                 #                 run(device, args, save_dir, save_name)
 
-                    args.coef_cl = coef_cl
-                    args.coef_ml = 1 - args.coef_cl
+                # args.coef_cl = coef_cl
+                # args.coef_ml = 1 - args.coef_cl
 
-                    save_dir = f'results/{args.DATA_SET_NAME}/'
-                    save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-p{args.noise_rate}-r{args.noise_num}-' \
-                                f'lat{args.latent_dim}-hdim{args.high_feature_dim}-emd{args.embedding_dim}-' \
-                                f'coef_cl{args.coef_cl}.txt'
-                    run(device, args, save_dir, save_name)
+                save_dir = f'results/{args.DATA_SET_NAME}/'
+                save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-p{args.noise_rate}-r{args.noise_num}-' \
+                            f'lat{args.latent_dim}-hdim{args.high_feature_dim}-emd{args.embedding_dim}-' \
+                            f'coef_cl{args.coef_cl}.txt'
 
-                    # 随机搜索
-                    # random_params = {k: random.sample(v, 1)[0] for k, v in param_grid.items()}
-                    # args.latent_dim = random_params['latent_dim']
-                    # args.high_feature_dim = random_params['high_feature_dim']
-                    # args.embedding_dim = random_params['embedding_dim']
-                    # args.common_embedding_dim = random_params['common_embedding_dim']
+                run(device, args, save_dir, save_name)
+
+                # 随机搜索
+                # random_params = {k: random.sample(v, 1)[0] for k, v in param_grid.items()}
+                # args.latent_dim = random_params['latent_dim']
+                # args.high_feature_dim = random_params['high_feature_dim']
+                # args.embedding_dim = random_params['embedding_dim']
+                # args.common_embedding_dim = random_params['common_embedding_dim']
 

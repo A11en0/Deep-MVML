@@ -7,7 +7,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 
-from utils.loss import Loss
+from utils.loss import Loss, calc_kl_loss, cal_kl_loss
 from utils.ml_metrics import all_metrics
 
 
@@ -27,7 +27,8 @@ def test(model, features, labels, device, model_state_path=None, is_eval=False):
 
     # prediction
     with torch.no_grad():
-        feat_outs, label_out, hs, zs = model(features, labels)
+        feat_outs, feat_mus, feat_logvars, label_out, label_mu, label_logvar, hs = model(features, labels)
+        # feat_outs, label_out, hs, zs = model(features, labels)
         outputs = reduce(lambda x, y: x + y, feat_outs) / len(feat_outs)
 
     outputs = outputs.cpu().numpy()
@@ -77,9 +78,28 @@ class Trainer(object):
 
                 labels = labels.to(self.device)
 
-                feat_outs, label_out, hs, zs = self.model(inputs, labels)
+                feat_outs, feat_mus, feat_logvars, label_out, label_mu, label_logvar, hs \
+                    = self.model(inputs, labels)
+
+                # feat_outs, label_out, hs, zs = self.model(inputs, labels)
+                # cls, feat_embs, hs, zs = self.model(inputs, labels)
+
                 _cl_loss = []
                 _cls_loss = []
+                # _mse_loss = []
+
+                _kl_loss = []
+
+                # kl_loss
+                for v in range(self.model.view):
+                    feat_mu, feat_logvar = feat_mus[v], feat_logvars[v]
+                    _kl_loss.append(cal_kl_loss(feat_mu, feat_logvar, label_mu, label_logvar,))
+                kl_loss = sum(_kl_loss)
+
+                # close loss
+                # for v in range(self.model.view):
+                #     _mse_loss.append(mse(feat_outs[v], label_out))
+                # mse_loss = sum(_mse_loss)
 
                 # contrastive loss
                 for v in range(self.model.view):
@@ -99,9 +119,10 @@ class Trainer(object):
 
                 # for v in range(len(cls)):
                 #     _cls_loss.append(F.binary_cross_entropy(cls[v], labels))
-                # cls_loss = sum(_cls_loss)
+                # ml_loss = sum(_cls_loss)
 
-                loss = self.args.coef_cl*cl_loss + self.args.coef_ml*ml_loss
+                loss = self.args.coef_cl * cl_loss + self.args.coef_ml * ml_loss + self.args.coef_kl*kl_loss
+                # loss = self.args.coef_cl * cl_loss + self.args.coef_ml * ml_loss + mse_loss
 
                 # reconstruction loss
                 # for v in range(len(xrs)):
@@ -109,7 +130,7 @@ class Trainer(object):
                 # loss = sum(loss_list)
 
                 print_str = f'Epoch: {epoch}\t Loss: {loss.item():.4f}\t CL Loss: {self.args.coef_cl*cl_loss:.4f}' \
-                            f'\tML Loss: {self.args.coef_ml*ml_loss:.4f}'
+                            f'\tML Loss: {self.args.coef_ml*ml_loss:.4f}\t KL Loss: {self.args.coef_kl*kl_loss:.4f}'
 
                 # show loss info
                 if epoch % self.show_epoch == 0 and step == 0:
