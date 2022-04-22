@@ -49,12 +49,6 @@ def test(model, features, labels, device, model_state_path=None, is_eval=False, 
         else:
             outputs = model(features)
 
-    # for v in range(len(outputs)):
-        # loss_tmp = F.binary_cross_entropy(outputs[v], labels_lp)
-        # nll_loss_x.append(loss_tmp)
-
-    outputs = reduce(lambda x, y: x + y, outputs) / len(outputs)
-
     outputs = outputs.cpu().numpy()
     preds = (outputs > 0.5).astype(int)
 

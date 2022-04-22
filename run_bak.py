@@ -12,14 +12,26 @@ from train import train, test
 from utils.common_tools import split_data_set_by_idx, ViewsDataset, load_mat_data, init_random_seed
 
 
-def run(args, save_name):
+def run(args, save_dir, file_name):
+    print('*' * 30)
+    print('ML Loss coefficient:\t', args.coef_ml)
+    print('KL loss coefficient:\t', args.coef_kl)
+    print('dataset:\t', args.DATA_SET_NAME)
+    print('common feature dims:\t', args.common_feature_dim)
+    print('latent dims:\t', args.latent_dim)
+    print('optimizer:\t Adam')
+    print('*' * 30)
+
+    save_name = save_dir + file_name
+
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
     features, labels, idx_list = load_mat_data(os.path.join(args.DATA_ROOT, args.DATA_SET_NAME + '.mat'), True)
 
-    writer = SummaryWriter()
-
-    # label_num = np.size(labels, 1)
-    # metrics_result_list = []
-    # avg_metrics = {}
     fold_list = []
     rets = np.zeros((Fold_numbers, 11))
     for fold in range(Fold_numbers):
@@ -41,22 +53,11 @@ def run(args, save_name):
         view_blocks = [ViewBlock(view_code_list[i], view_feature_nums_list[i], args.common_feature_dim)
                        for i in range(len(view_code_list))]
 
-        # encoder_blocks = [EncoderBlock(view_code_list[i], view_feature_nums_list[i], args.common_feature_dim)
-        #                for i in range(len(view_code_list))]
-
-        # decoder_blocks = [DecoderBlock(view_code_list[i], 128, view_feature_nums_list[i])
-        #                   for i in range(len(view_code_list))]
-
         # load model
         label_nums = train_labels.shape[1]
         num_view = len(view_code_list)
 
-        if args.le:
-            # model = ModelEmbedding(encoder_blocks, args.common_feature_dim, label_nums, device, args).to(device)
-            # model = Network(encoder_blocks, args.common_feature_dim, label_nums, device, args).to(device)
-            model = Network(num_view, view_feature_nums_list, label_nums, device, args).to(device)
-        else:
-            model = Model(view_blocks, args.common_feature_dim, label_nums, device, args).to(device)
+        model = Model(view_blocks, args.common_feature_dim, label_nums, device, args).to(device)
 
         print(model)
         # training
@@ -68,15 +69,6 @@ def run(args, save_name):
 
         for i, key in enumerate(metrics_results):
             rets[fold][i] = metrics_results[key]
-            
-        # show results
-        # for m in metrics_results:
-        #     if m[0] in avg_metrics:
-        #         avg_metrics[m[0]] += m[1]
-        #     else:
-        #         avg_metrics[m[0]] = m[1]
-
-        # metrics_result_list.append(metrics_results)
 
     # Draw figures
     # if args.is_test_in_train:
@@ -104,27 +96,6 @@ def run(args, save_name):
             f.write("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=means[i], std=stds[i]))
             f.write("\n")
 
-    writer.flush()
-    writer.close()
-
-def boot(args, save_dir, file_name):
-    print('*' * 30)
-    print('ML Loss coefficient:\t', args.coef_ml)
-    print('KL loss coefficient:\t', args.coef_kl)
-    print('dataset:\t', args.DATA_SET_NAME)
-    print('common feature dims:\t', args.common_feature_dim)
-    print('latent dims:\t', args.latent_dim)
-    print('optimizer:\t Adam')
-    print('*' * 30)
-
-    save_name = save_dir + file_name
-
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-
-    # if not os.path.exists(save_name):
-    run(args, save_name)
-
 
 if __name__ == '__main__':
     args = Args()
@@ -138,11 +109,6 @@ if __name__ == '__main__':
     # tune parameters
     # datanames = ['yeast.mat', 'scene.mat', 'Pascal.mat',  'emotions.mat', 'Corel5k.mat', 'Mirflickr.mat', 'Espgame.mat']
     # datanames = ['yeast', 'scene', 'emotions', ]  # epoch25 / latent64 / lr 1e-3
-        # self.common_feature_dim = 256
-        # self.latent_dim = 6  # 小数据集 64
-        # self.embedding_dim = 512  # 极其重要
-        # self.keep_prob = 0.5
-        # self.scale_coeff = 1.0
 
     # datanames = ['Emotions']
     # datanames = ['Scene']
@@ -170,10 +136,10 @@ if __name__ == '__main__':
                     args.DATA_SET_NAME = dataname
                     args.eta = eta
                     args.noise_rate = p
-                    # args.coef_kl = kl_coef
+
                     save_dir = f'results/{args.DATA_SET_NAME}/'
                     file_name = f'{args.DATA_SET_NAME}_bs{args.batch_size}_ml{args.coef_ml}_' \
                                 f'kl{args.coef_kl}_epoch{args.epoch}_lr{args.lr}_com{args.common_feature_dim}_' \
                                 f'lat{args.latent_dim}_p{args.noise_rate}.txt-'
-                    boot(args, save_dir, file_name)
+                    run(args, save_dir, file_name)
 
