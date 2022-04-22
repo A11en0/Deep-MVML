@@ -7,7 +7,7 @@ class Args:
     def __init__(self):
         self.DATA_ROOT = '/home/allen/Datasets/MVML'
         self.DATA_SET_NAME = 'yeast'
-        self.epoch = 200
+        self.epoch = 100
         self.show_epoch = 1
         # self.epoch_used_for_final_result = 4
         self.model_save_epoch = 10
@@ -37,9 +37,9 @@ class Args:
         self.noise_rate = 0.7
         self.noise_num = 3
 
-        self.common_feature_dim = 256
-        self.latent_dim = 260  # 小数据集 64
-        self.embedding_dim = 2048  # 极其重要
+        self.common_feature_dim = 256*2  # 356
+        self.latent_dim = 256  # 小数据集 64
+        self.embedding_dim = 2048  # 2048 极其重要
         self.keep_prob = 0.5
         self.scale_coeff = 1.0
 

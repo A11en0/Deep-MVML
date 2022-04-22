@@ -91,7 +91,7 @@ class ModelEmbedding(nn.Module):
                                        out_features=256, args=args)
 
         # attention
-        self.W = nn.Linear(512, 512)
+        # self.W = nn.Linear(512, 512)
         self.args = args
 
     def _extract_view_features(self, x):
@@ -142,11 +142,11 @@ class ModelEmbedding(nn.Module):
 
         feature_embedding = torch.cat((view_features, comm_features), dim=1)
 
-        label_emb, label_z, label_mu, label_logvar = self.label_forward(label)
         feat_emb, feat_mu, feat_logvar = self.feat_forward(feature_embedding)
+        label_emb, label_z, label_mu, label_logvar = self.label_forward(label)
 
-        label_out = torch.sigmoid(torch.matmul(label_emb, embs))
         feat_out = torch.sigmoid(torch.matmul(feat_emb, embs))
+        label_out = torch.sigmoid(torch.matmul(label_emb, embs))
 
         return label_out, label_mu, label_logvar, feat_out, feat_mu, feat_logvar
 

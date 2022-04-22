@@ -17,18 +17,17 @@ def compute_loss(input_label, fe_out, fe_mu, fe_logvar, fx_out, fx_mu, fx_logvar
 
 def calc_kl_loss(fx_mu, fx_logvar, fe_mu, fe_logvar, input_label):
     # GM-VAE
-    std = torch.exp(0.5 * fx_logvar)
-    eps = torch.randn_like(std)
-    fx_sample = fx_mu + eps * std
-    fx_var = torch.exp(fx_logvar)
-    fe_var = torch.exp(fe_logvar)
-    kl_loss = (log_normal(fx_sample, fx_mu, fx_var) - log_normal_mixture(fx_sample, fe_mu, fe_var, input_label)).mean()
+    # std = torch.exp(0.5 * fx_logvar)
+    # eps = torch.randn_like(std)
+    # fx_sample = fx_mu + eps * std
+    # fx_var = torch.exp(fx_logvar)
+    # fe_var = torch.exp(fe_logvar)
+    # kl_loss = (log_normal(fx_sample, fx_mu, fx_var) - log_normal_mixture(fx_sample, fe_mu, fe_var, input_label)).mean()
 
     # VAE
-    # kl_loss = torch.mean(0.5 * torch.sum(
-    #     (fx_logvar - fe_logvar) - 1 + torch.exp(fe_logvar - fx_logvar) + torch.square(fx_mu - fe_mu) / (
-    #                 torch.exp(fx_logvar) + 1e-6), dim=1))
-
+    kl_loss = torch.mean(0.5 * torch.sum(
+        (fx_logvar - fe_logvar) - 1 + torch.exp(fe_logvar - fx_logvar) + torch.square(fx_mu - fe_mu) / (
+                    torch.exp(fx_logvar) + 1e-6), dim=1))
     return kl_loss
 
 def log_normal_mixture(z, m, v, mask=None):

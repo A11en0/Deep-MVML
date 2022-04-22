@@ -22,7 +22,7 @@ def gen_idx_list(length):
 
     return idx
 
-def load_mat_data_v1(file_name, need_zscore=False):
+def load_mat_data(file_name, need_zscore=False):
     try:
         dataset = loadmat(file_name)
         data = dataset['data']

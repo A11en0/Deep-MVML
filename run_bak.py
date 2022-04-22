@@ -3,50 +3,34 @@ import os
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
-# from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 from config import *
-from train import train, test
-from layer.view_block import ViewBlock
+from layer.view_block import ViewBlock, DecoderBlock
 from models import Model, ModelEmbedding
-from train import test, Trainer
+from train import train, test
 from utils.common_tools import split_data_set_by_idx, ViewsDataset, load_mat_data, init_random_seed
 
 
-def run(device, args, save_dir, file_name):
-    print('*' * 30)
-    print('seed:\t', args.seed)
-    print('dataset:\t', args.DATA_SET_NAME)
-    # print('latent dim:\t', args.latent_dim)
-    # print('high feature dim:\t', args.high_feature_dim)
-    # print('embedding dim:\t', args.embedding_dim)
-    # print('coef_cl:\t', args.coef_cl)
-    # print('coef_ml:\t', args.coef_ml)
-    print('optimizer:\t Adam')
-    print('*' * 30)
-
-    # setting random seeds
-    init_random_seed(args.seed)
-
-    save_name = save_dir + file_name
-
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-
-    if os.path.exists(save_name):
-        return
-
+def run(args, save_name):
     features, labels, idx_list = load_mat_data(os.path.join(args.DATA_ROOT, args.DATA_SET_NAME + '.mat'), True)
 
-    # writer = SummaryWriter()
-    fold_list, metrics_results = [], []
-    rets = np.zeros((Fold_numbers, 11))  # 11 metrics
+    writer = SummaryWriter()
+
+    # label_num = np.size(labels, 1)
+    # metrics_result_list = []
+    # avg_metrics = {}
+    fold_list = []
+    rets = np.zeros((Fold_numbers, 11))
     for fold in range(Fold_numbers):
+        if fold == 1:
+            break
+
         TEST_SPLIT_INDEX = fold
         print('-' * 50 + '\n' + 'Fold: %s' % fold)
         train_features, train_labels, train_partial_labels, test_features, test_labels = split_data_set_by_idx(
             features, labels, idx_list, TEST_SPLIT_INDEX, args)
-        
+
         # load views features and labels
         views_dataset = ViewsDataset(train_features, train_partial_labels, device)
         views_data_loader = DataLoader(views_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0)
@@ -57,9 +41,12 @@ def run(device, args, save_dir, file_name):
         view_blocks = [ViewBlock(view_code_list[i], view_feature_nums_list[i], args.common_feature_dim)
                        for i in range(len(view_code_list))]
 
-        label_nums = train_labels.shape[1]
+        # decoder_blocks = [DecoderBlock(view_code_list[i], 128, view_feature_nums_list[i])
+        #                   for i in range(len(view_code_list))]
 
         # load model
+        label_nums = train_labels.shape[1]
+
         if args.le:
             model = ModelEmbedding(view_blocks, args.common_feature_dim, label_nums, device, args).to(device)
         else:
@@ -75,31 +62,62 @@ def run(device, args, save_dir, file_name):
 
         for i, key in enumerate(metrics_results):
             rets[fold][i] = metrics_results[key]
+            
+        # show results
+        # for m in metrics_results:
+        #     if m[0] in avg_metrics:
+        #         avg_metrics[m[0]] += m[1]
+        #     else:
+        #         avg_metrics[m[0]] = m[1]
 
-    rets = np.zeros((Fold_numbers, args.epoch, 11))  # 11 metrics
-    for fold, li_fold in enumerate(fold_list):
-        for i, epoch in enumerate(li_fold):
-            for j, key in enumerate(li_fold[i]):
-                rets[fold][i][j] = li_fold[i][key]
+        # metrics_result_list.append(metrics_results)
 
-    means = np.mean(rets, axis=0)
-    stds = np.std(rets, axis=0)
-    _index = np.argsort(means[:, 0])
-    means = means[_index]
-    stds = stds[_index]
+    # Draw figures
+    # if args.is_test_in_train:
+    #     metrics_keys = ["ML_loss", "Hamming", "Average", "Ranking", "Coverage", "MacroF1", "MicroF1", "OneError"]
+    #     up_keys = ["Average", "MacroF1", "MicroF1"]
+    #     for epoch in range(len(fold_list[0])):
+    #         for key in metrics_keys:
+    #             matrics_vals = 0.0
+    #             for fold in range(len(fold_list)):
+    #                 matrics_vals += fold_list[fold][epoch][key]
+    #             matrics_vals = matrics_vals / len(fold_list)
+    #             if key in up_keys:
+    #                 writer.add_scalar(f"UP/{key}", matrics_vals, epoch)  # log
+    #             else:
+    #                 writer.add_scalar(f"Down/{key}", matrics_vals, epoch)  # log
 
     print("\n------------summary--------------")
-    print("Best Epoch: ", _index[0])
-    metrics_list = list(metrics_results.keys())
+    means = np.mean(rets, axis=0)*5
+    stds = np.std(rets, axis=0)*5
 
+    metrics_list = list(metrics_results.keys())
     with open(save_name, "w") as f:
-        for i, _ in enumerate(means[0, :]):
-            print("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=means[0, :][i],
-                                                           std=stds[0, :][i]))
-            f.write("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=means[0, :][i],
-                                                           std=stds[0, :][i]))
+        for i, _ in enumerate(means):
+            print("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=means[i], std=stds[i]))
+            f.write("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=means[i], std=stds[i]))
             f.write("\n")
-        f.write(str(_index[0]))
+
+    writer.flush()
+    writer.close()
+
+def boot(args, save_dir, file_name):
+    print('*' * 30)
+    print('ML Loss coefficient:\t', args.coef_ml)
+    print('KL loss coefficient:\t', args.coef_kl)
+    print('dataset:\t', args.DATA_SET_NAME)
+    print('common feature dims:\t', args.common_feature_dim)
+    print('latent dims:\t', args.latent_dim)
+    print('optimizer:\t Adam')
+    print('*' * 30)
+
+    save_name = save_dir + file_name
+
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    # if not os.path.exists(save_name):
+    run(args, save_name)
 
 
 if __name__ == '__main__':
@@ -120,16 +138,18 @@ if __name__ == '__main__':
         # self.keep_prob = 0.5
         # self.scale_coeff = 1.0
 
-    datanames = ['Emotions']
+    # datanames = ['Emotions']
+    # datanames = ['Scene']
     # datanames = ['Pascal']
-    # datanames = ['Corel5k']  # bug
+    datanames = ['Corel5k']  # bug
     # datanames = ['Espgame']
     # datanames = ['Mirflickr']
     # datanames = ['Espgame']
     # datanames = ['Iaprtc12']
 
     # lrs = [1e-2, 1e-3, 1e-4, 1e-5]
-    lrs = [1e-3]
+    # lrs = [1e-3]
+    lrs = [5e-5]
     etas = [5e-3]
 
     # noise_rates = [0.3, 0.5, 0.7]
@@ -149,7 +169,5 @@ if __name__ == '__main__':
                     file_name = f'{args.DATA_SET_NAME}_bs{args.batch_size}_ml{args.coef_ml}_' \
                                 f'kl{args.coef_kl}_epoch{args.epoch}_lr{args.lr}_com{args.common_feature_dim}_' \
                                 f'lat{args.latent_dim}_p{args.noise_rate}.txt'
-                    run(device, args, save_dir, file_name)
-
-
+                    boot(args, save_dir, file_name)
 
