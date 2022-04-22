@@ -3,11 +3,10 @@ import os
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
 
 from config import *
-from layer.view_block import ViewBlock, DecoderBlock, EncoderBlock
-from models import Model, ModelEmbedding, Network
+from layer.view_block import ViewBlock
+from models import Model
 from train import train, test
 from utils.common_tools import split_data_set_by_idx, ViewsDataset, load_mat_data, init_random_seed
 
@@ -58,8 +57,8 @@ def run(args, save_dir, file_name):
         num_view = len(view_code_list)
 
         model = Model(view_blocks, args.common_feature_dim, label_nums, device, args).to(device)
-
         print(model)
+
         # training
         loss_list = train(model, device, views_data_loader, args, loss_coefficient,
                      train_features, train_partial_labels, test_features, test_labels, fold=1)
@@ -69,6 +68,36 @@ def run(args, save_dir, file_name):
 
         for i, key in enumerate(metrics_results):
             rets[fold][i] = metrics_results[key]
+
+    rets = np.zeros((Fold_numbers, args.epoch, 11))  # 11 metrics
+    for fold, li_fold in enumerate(fold_list):
+        for i, epoch in enumerate(li_fold):
+            for j, key in enumerate(li_fold[i]):
+                rets[fold][i][j] = li_fold[i][key]
+
+    means = np.mean(rets, axis=0)
+    stds = np.std(rets, axis=0)
+    _index = np.argsort(means[:, 6])
+
+    # times 5 fold
+    # means = means[_index]*5
+    # stds = stds[_index]*5
+
+    mean_choose = means[_index][-1, :]*5
+    std_choose = means[_index][-1, :]*5
+
+    print("\n------------summary--------------")
+    print("Best Epoch: ", _index[0])
+    metrics_list = list(metrics_results.keys())
+
+    with open(save_name, "w") as f:
+        for i, _ in enumerate(mean_choose):
+            print("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=mean_choose[i],
+                                                           std=std_choose[i]))
+            f.write("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=mean_choose[i],
+                                                           std=std_choose[i]))
+            f.write("\n")
+        f.write(str(_index[0]))
 
     # Draw figures
     # if args.is_test_in_train:
@@ -85,16 +114,16 @@ def run(args, save_dir, file_name):
     #             else:
     #                 writer.add_scalar(f"Down/{key}", matrics_vals, epoch)  # log
 
-    print("\n------------summary--------------")
-    means = np.mean(rets, axis=0)*5
-    stds = np.std(rets, axis=0)*5
-
-    metrics_list = list(metrics_results.keys())
-    with open(save_name, "w") as f:
-        for i, _ in enumerate(means):
-            print("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=means[i], std=stds[i]))
-            f.write("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=means[i], std=stds[i]))
-            f.write("\n")
+    # print("\n------------summary--------------")
+    # means = np.mean(rets, axis=0)*5
+    # stds = np.std(rets, axis=0)*5
+    #
+    # metrics_list = list(metrics_results.keys())
+    # with open(save_name, "w") as f:
+    #     for i, _ in enumerate(means):
+    #         print("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=means[i], std=stds[i]))
+    #         f.write("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=means[i], std=stds[i]))
+    #         f.write("\n")
 
 
 if __name__ == '__main__':
@@ -112,9 +141,9 @@ if __name__ == '__main__':
 
     # datanames = ['Emotions']
     # datanames = ['Scene']
-    datanames = ['Pascal']
-    # datanames = ['Corel5k']  # bug
-    # datanames = ['Espgame']
+    # datanames = ['Yeast']
+    # datanames = ['Pascal']
+    datanames = ['Corel5k']  # bug
     # datanames = ['Mirflickr']
     # datanames = ['Espgame']
     # datanames = ['Iaprtc12']
@@ -124,8 +153,8 @@ if __name__ == '__main__':
     lrs = [1e-3]
     etas = [5e-3]
 
-    # noise_rates = [0.3, 0.5, 0.7]
-    noise_rates = [0.0]
+    noise_rates = [0.3, 0.5, 0.7]
+    # noise_rates = [0.0]
 
     # for kl_coef in kl_coef_lists:
     for eta in etas:
@@ -140,6 +169,6 @@ if __name__ == '__main__':
                     save_dir = f'results/{args.DATA_SET_NAME}/'
                     file_name = f'{args.DATA_SET_NAME}_bs{args.batch_size}_ml{args.coef_ml}_' \
                                 f'kl{args.coef_kl}_epoch{args.epoch}_lr{args.lr}_com{args.common_feature_dim}_' \
-                                f'lat{args.latent_dim}_p{args.noise_rate}.txt-'
+                                f'lat{args.latent_dim}_p{args.noise_rate}.txt'
                     run(args, save_dir, file_name)
 

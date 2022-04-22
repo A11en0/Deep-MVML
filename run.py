@@ -66,6 +66,7 @@ def run(device, args, save_dir, file_name):
             model = Model(view_blocks, args.common_feature_dim, label_nums, device, args).to(device)
 
         print(model)
+
         # training
         loss_list = train(model, device, views_data_loader, args, loss_coefficient,
                      train_features, train_partial_labels, test_features, test_labels, fold=1)

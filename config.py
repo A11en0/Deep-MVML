@@ -28,15 +28,13 @@ class Args:
 
         self.neighbors_num = 10
         self.no_verbose = True
-        self.using_lp = False
-        self.le = False
-        self.attention = False
+        self.using_lp = True
 
         self.lr = 1e-3  # 1e-3 5e-3
         self.weight_decay = 1e-5  # 1e-5
         self.noise_rate = 0.7
         self.noise_num = 3
-        
+
         self.common_feature_dim = 256  # 256
         self.latent_dim = 64  # 小数据集 64
         self.embedding_dim = 2048  # 2048 极其重要

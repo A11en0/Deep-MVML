@@ -44,10 +44,7 @@ def test(model, features, labels, device, model_state_path=None, is_eval=False, 
 
     # prediction
     with torch.no_grad():
-        if args.le:
-            outputs_y, label_mu, label_logvar, outputs, feat_mu, feat_logvar = model(features, labels)
-        else:
-            outputs = model(features)
+        outputs = model(features)
 
     outputs = outputs.cpu().numpy()
     preds = (outputs > 0.5).astype(int)
@@ -72,15 +69,13 @@ class Trainer(object):
         self.model_save_dir = model_save_dir
         self.device = device
 
-        self.latent_I = torch.eye(64).to(device)
-
     def fit(self, fold, train_features, train_partial_labels, test_features, test_labels, args=None):
         loss_list = []
-        kl_loss = _RL_loss = 0.0
+
         Wn = 0.0
         best_F1 = 0.0
         best_epoch = 0
-        # writer = SummaryWriter()
+
         if not os.path.exists(self.model_save_dir):
             os.makedirs(self.model_save_dir)
 
@@ -114,64 +109,23 @@ class Trainer(object):
                 for i, _ in enumerate(inputs):
                     inputs[i] = inputs[i].to(self.device)
                 labels = labels.to(self.device)
+                outputs = self.model(inputs)
 
-                if args.le:
-                    # predict / feature embedding / label embedding
-                    label_out, label_mu, label_logvar, feat_outs, feat_mu, feat_logvar = self.model(inputs, labels)
-                    kl_loss = calc_kl_loss(feat_mu, feat_logvar, label_mu, label_logvar, labels)
-                    # kl_loss = compute_loss(labels, label_out, label_mu, label_logvar, feat_out, feat_mu, feat_logvar, args)
+                if args.using_lp:
+                    ml_loss = F.binary_cross_entropy(outputs, labels_lp)
                 else:
-                    outputs = self.model(inputs)
+                    ml_loss = F.binary_cross_entropy(outputs, labels)
 
-                if args.le:
-                    if args.using_lp:
-                        # classification loss
-                        nll_loss_x = []
-                        for v in range(len(feat_outs)):
-                            loss_tmp = F.binary_cross_entropy(feat_outs[v], labels_lp)
-                            nll_loss_x.append(loss_tmp)
-                            # nll_loss_x.append(weight_var[v] ** self.args.gamma * loss_tmp)
-                            # weight_up_temp = loss_tmp ** (1 / (1 - self.args.gamma))
-                            # weight_up_list.append(weight_up_temp)
+                loss = args.coef_ml * ml_loss
 
-                        nll_loss_x = sum(nll_loss_x)
-                        nll_loss_y = F.binary_cross_entropy(label_out, labels_lp)
-                        _ML_loss = 0.5*(nll_loss_x + nll_loss_y)
-                    else:
-                        nll_loss_x = []
-                        for v in range(len(feat_outs)):
-                            loss_tmp = F.binary_cross_entropy(feat_outs[v], labels)
-                            nll_loss_x.append(loss_tmp)
-                            # nll_loss_x.append(weight_var[v] ** self.args.gamma * loss_tmp)
-                            # weight_up_temp = loss_tmp ** (1 / (1 - self.args.gamma))
-                            # weight_up_list.append(weight_up_temp)
-
-                        # nll_loss_x = F.binary_cross_entropy(feat_out, labels_lp)
-                        nll_loss_x = sum(nll_loss_x)
-                        nll_loss_y = F.binary_cross_entropy(label_out, labels)
-                        _ML_loss = 0.5 * (nll_loss_x + nll_loss_y)
-                else:
-                    if args.using_lp:
-                        _ML_loss = F.binary_cross_entropy(outputs, labels_lp)
-                    else:
-                        _ML_loss = F.binary_cross_entropy(outputs, labels)
-
-                loss = args.coef_ml * _ML_loss
-
-                if args.le:
-                    loss += kl_loss * args.coef_kl
-                    print_str = f'Epoch: {epoch}\t ML Loss: {_ML_loss.item():.4f}\tKL Loss: ' \
-                                f'{kl_loss.item():.4f}\tTotal Loss: {loss.item():.4f}'
-                else:
-                    print_str = f'Epoch: {epoch}\t ML Loss: {_ML_loss.item():.4f}\t' \
+                print_str = f'Epoch: {epoch}\t ML Loss: {ml_loss.item():.4f}\t' \
                                 f'RL Loss: Total Loss: {loss.item():.4f}'
 
                 # show loss info
                 if epoch % self.show_epoch == 0 and step == 0:
                     epoch_loss = dict()
-                    epoch_loss['ML_loss'] = _ML_loss.item()
-                    # writer.add_scalar("Loss/train", _ML_loss, epoch)  # log
-                    # plotter.plot('loss', 'train', 'Class Loss', epoch, _ML_loss)
+                    # writer.add_scalar("Loss/train", ml_loss, epoch)  # log
+                    # plotter.plot('loss', 'train', 'Class Loss', epoch, ml_loss)
                     loss_list.append(epoch_loss)
                     print(print_str)
 
@@ -200,8 +154,7 @@ class Trainer(object):
                 torch.save(self.model.state_dict(),
                         os.path.join(self.model_save_dir,
                                      'fold' + str(fold)+'_' + 'epoch' + str(epoch + 1) + '.pth'))
-        # writer.flush()
-        # writer.close()
+
         print(f"best_F1: {best_F1}, epoch {best_epoch}")
         return loss_list
 
