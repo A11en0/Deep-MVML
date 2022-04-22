@@ -148,6 +148,58 @@ class Feature_VAE(VAE_basic):
         return output, mu, logvar
 
 
+class Feature_VAE_Fusing(VAE_basic):
+    def __init__(self, in_features, out_features, hidden_features, label_dim, view_count, args):
+        super(Feature_VAE_Fusing, self).__init__(args)
+        # encoder
+        self.encoder = MLP(in_features=in_features, out_features=out_features, hidden_features=hidden_features,
+                           batchNorm=True, nonlinearity='leaky_relu')
+        self.mu = nn.Linear(out_features, args.latent_dim)
+        self.logvar = nn.Linear(out_features, args.latent_dim)
+        self.mu_batchnorm = nn.BatchNorm1d(args.latent_dim)
+        self.sigma_batchnorm = nn.BatchNorm1d(args.latent_dim)
+
+        # decoder
+        self.decoder = MLP(in_features=args.common_feature_dim + args.latent_dim, out_features=args.embedding_dim, hidden_features=[512],
+                           batchNorm=True, nonlinearity='leaky_relu')
+
+        # self.feat_mp_mu = nn.Linear(args.embedding_dim, label_dim)
+
+    def encode(self, x):
+        output = self.encoder(x)
+        mu = self.mu(output) * self.scale_coeff
+        logvar = self.logvar(output) * self.scale_coeff
+        return mu, logvar
+
+    def decode(self, z):
+        output = self.decoder(z)
+        output = F.normalize(output, dim=1)
+        return output
+
+    def forward(self, view_features, comm_features):
+        feat_embeddings = []
+        num_view = len(view_features)
+
+        # feature encoder
+        view_feature = torch.cat(view_features, dim=1)
+        comm_feature = torch.stack(comm_features).mean(dim=0)
+        fusing_features = torch.cat((view_feature, comm_feature), dim=1)
+
+        mu, logvar = self.encode(fusing_features)
+
+        # batch norm
+        mu = self.mu_batchnorm(mu)
+        logvar = self.sigma_batchnorm(logvar)
+        z = self.reparameterize(mu, logvar)
+
+        # feature decoder
+        for v in range(num_view):
+            x_z = torch.cat((view_features[v], z), dim=1)
+            feat_embeddings.append(self.decode(x_z))
+
+        return feat_embeddings, mu, logvar
+
+
 if __name__ == '__main__':
     data = torch.randn(256, 1536)
     target = torch.randn(256, 14)

@@ -37,14 +37,15 @@ class Args:
         self.noise_rate = 0.7
         self.noise_num = 3
 
-        self.common_feature_dim = 256*2  # 356
-        self.latent_dim = 256  # 小数据集 64
+        self.common_feature_dim = 256  # 256
+        self.latent_dim = 64  # 小数据集 64
         self.embedding_dim = 2048  # 2048 极其重要
         self.keep_prob = 0.5
         self.scale_coeff = 1.0
 
         self.coef_ml = 1.0
         self.coef_kl = 2.0
+
 
 loss_coefficient = {}
 

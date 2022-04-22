@@ -6,8 +6,8 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from config import *
-from layer.view_block import ViewBlock, DecoderBlock
-from models import Model, ModelEmbedding
+from layer.view_block import ViewBlock, DecoderBlock, EncoderBlock
+from models import Model, ModelEmbedding, Network
 from train import train, test
 from utils.common_tools import split_data_set_by_idx, ViewsDataset, load_mat_data, init_random_seed
 
@@ -41,14 +41,20 @@ def run(args, save_name):
         view_blocks = [ViewBlock(view_code_list[i], view_feature_nums_list[i], args.common_feature_dim)
                        for i in range(len(view_code_list))]
 
+        # encoder_blocks = [EncoderBlock(view_code_list[i], view_feature_nums_list[i], args.common_feature_dim)
+        #                for i in range(len(view_code_list))]
+
         # decoder_blocks = [DecoderBlock(view_code_list[i], 128, view_feature_nums_list[i])
         #                   for i in range(len(view_code_list))]
 
         # load model
         label_nums = train_labels.shape[1]
+        num_view = len(view_code_list)
 
         if args.le:
-            model = ModelEmbedding(view_blocks, args.common_feature_dim, label_nums, device, args).to(device)
+            # model = ModelEmbedding(encoder_blocks, args.common_feature_dim, label_nums, device, args).to(device)
+            # model = Network(encoder_blocks, args.common_feature_dim, label_nums, device, args).to(device)
+            model = Network(num_view, view_feature_nums_list, label_nums, device, args).to(device)
         else:
             model = Model(view_blocks, args.common_feature_dim, label_nums, device, args).to(device)
 
@@ -140,8 +146,8 @@ if __name__ == '__main__':
 
     # datanames = ['Emotions']
     # datanames = ['Scene']
-    # datanames = ['Pascal']
-    datanames = ['Corel5k']  # bug
+    datanames = ['Pascal']
+    # datanames = ['Corel5k']  # bug
     # datanames = ['Espgame']
     # datanames = ['Mirflickr']
     # datanames = ['Espgame']
@@ -149,7 +155,7 @@ if __name__ == '__main__':
 
     # lrs = [1e-2, 1e-3, 1e-4, 1e-5]
     # lrs = [1e-3]
-    lrs = [5e-5]
+    lrs = [1e-3]
     etas = [5e-3]
 
     # noise_rates = [0.3, 0.5, 0.7]
@@ -168,6 +174,6 @@ if __name__ == '__main__':
                     save_dir = f'results/{args.DATA_SET_NAME}/'
                     file_name = f'{args.DATA_SET_NAME}_bs{args.batch_size}_ml{args.coef_ml}_' \
                                 f'kl{args.coef_kl}_epoch{args.epoch}_lr{args.lr}_com{args.common_feature_dim}_' \
-                                f'lat{args.latent_dim}_p{args.noise_rate}.txt'
+                                f'lat{args.latent_dim}_p{args.noise_rate}.txt-'
                     boot(args, save_dir, file_name)
 

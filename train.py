@@ -1,5 +1,7 @@
 # -*- coding: UTF-8 -*-
 import os
+from functools import reduce
+
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
@@ -46,6 +48,12 @@ def test(model, features, labels, device, model_state_path=None, is_eval=False, 
             outputs_y, label_mu, label_logvar, outputs, feat_mu, feat_logvar = model(features, labels)
         else:
             outputs = model(features)
+
+    # for v in range(len(outputs)):
+        # loss_tmp = F.binary_cross_entropy(outputs[v], labels_lp)
+        # nll_loss_x.append(loss_tmp)
+
+    outputs = reduce(lambda x, y: x + y, outputs) / len(outputs)
 
     outputs = outputs.cpu().numpy()
     preds = (outputs > 0.5).astype(int)
@@ -115,7 +123,7 @@ class Trainer(object):
 
                 if args.le:
                     # predict / feature embedding / label embedding
-                    label_out, label_mu, label_logvar, feat_out, feat_mu, feat_logvar = self.model(inputs, labels)
+                    label_out, label_mu, label_logvar, feat_outs, feat_mu, feat_logvar = self.model(inputs, labels)
                     kl_loss = calc_kl_loss(feat_mu, feat_logvar, label_mu, label_logvar, labels)
                     # kl_loss = compute_loss(labels, label_out, label_mu, label_logvar, feat_out, feat_mu, feat_logvar, args)
                 else:
@@ -123,13 +131,31 @@ class Trainer(object):
 
                 if args.le:
                     if args.using_lp:
-                        nll_loss_x = F.binary_cross_entropy(feat_out, labels_lp)
+                        # classification loss
+                        nll_loss_x = []
+                        for v in range(len(feat_outs)):
+                            loss_tmp = F.binary_cross_entropy(feat_outs[v], labels_lp)
+                            nll_loss_x.append(loss_tmp)
+                            # nll_loss_x.append(weight_var[v] ** self.args.gamma * loss_tmp)
+                            # weight_up_temp = loss_tmp ** (1 / (1 - self.args.gamma))
+                            # weight_up_list.append(weight_up_temp)
+
+                        nll_loss_x = sum(nll_loss_x)
                         nll_loss_y = F.binary_cross_entropy(label_out, labels_lp)
                         _ML_loss = 0.5*(nll_loss_x + nll_loss_y)
                     else:
-                        nll_loss_x = F.binary_cross_entropy(feat_out, labels)
+                        nll_loss_x = []
+                        for v in range(len(feat_outs)):
+                            loss_tmp = F.binary_cross_entropy(feat_outs[v], labels)
+                            nll_loss_x.append(loss_tmp)
+                            # nll_loss_x.append(weight_var[v] ** self.args.gamma * loss_tmp)
+                            # weight_up_temp = loss_tmp ** (1 / (1 - self.args.gamma))
+                            # weight_up_list.append(weight_up_temp)
+
+                        # nll_loss_x = F.binary_cross_entropy(feat_out, labels_lp)
+                        nll_loss_x = sum(nll_loss_x)
                         nll_loss_y = F.binary_cross_entropy(label_out, labels)
-                        _ML_loss = 0.5*(nll_loss_x + nll_loss_y)
+                        _ML_loss = 0.5 * (nll_loss_x + nll_loss_y)
                 else:
                     if args.using_lp:
                         _ML_loss = F.binary_cross_entropy(outputs, labels_lp)
@@ -166,8 +192,7 @@ class Trainer(object):
 
             # evaluation
             if epoch % self.show_epoch == 0 and args.is_test_in_train:
-                metrics_results, _ = test(self.model, test_features, test_labels,
-                                                  self.device, is_eval=True, args=args)
+                metrics_results, _ = test(self.model, test_features, test_labels, self.device, is_eval=True, args=args)
 
                 # draw figure to find best epoch number
                 for i, key in enumerate(metrics_results):

@@ -7,7 +7,8 @@ from torch import nn
 from sklearn import preprocessing
 import torch.nn.functional as F
 
-from layer.VAE import Feature_VAE, Label_VAE
+from layer.VAE import Feature_VAE, Label_VAE, Feature_VAE_Fusing
+from layer.view_block import EncoderBlock, DecoderBlock
 
 
 class Model(nn.Module):
@@ -149,6 +150,106 @@ class ModelEmbedding(nn.Module):
         label_out = torch.sigmoid(torch.matmul(label_emb, embs))
 
         return label_out, label_mu, label_logvar, feat_out, feat_mu, feat_logvar
+
+class Network(nn.Module):
+    def __init__(self, view_count, view_feature_nums_list, label_dim, device, args=None):
+        super(Network, self).__init__()
+        self.device = device
+        self.view_count = view_count
+        self.common_feature_dim = args.common_feature_dim
+
+        self.encoders = []
+        self.decoders = []
+        for v in range(view_count):
+            self.encoders.append(EncoderBlock(view_feature_nums_list[v], self.common_feature_dim).to(device))
+            # self.decoders.append(DecoderBlock(embedding_dim, latent_dim).to(device))
+
+        # view_count = len(self.view_blocks)
+        high_dim = args.common_feature_dim
+        self.final_feature_num = view_count * self.common_feature_dim + high_dim
+        self.fc_comm_extract = nn.Linear(self.common_feature_dim, high_dim)
+
+        # feature VAE
+        self.feat_forward = Feature_VAE_Fusing(in_features=self.final_feature_num,
+                                        out_features=256,
+                                           hidden_features=[256, 512], label_dim=label_dim,
+                                           view_count=view_count, args=args)
+
+        # label embedding
+        self.fe0 = nn.Linear(label_dim, args.embedding_dim)
+
+        # label VAE
+        self.label_forward = Label_VAE(label_dim=label_dim, label_embedding_layer=self.fe0,
+                                       out_features=256, args=args)
+
+        self.args = args
+
+    def _extract_view_features(self, x):
+        view_features_dict = {}
+        for view_block_code in self.view_blocks_codes:
+            view_x = x[int(view_block_code)]
+            view_block = self.view_blocks[view_block_code]
+            view_features = view_block(view_x)
+            view_features_dict[view_block_code] = view_features
+        return view_features_dict
+
+    def attention(self, x, y_emb):
+        '''
+        :param x: [256, 2, 512]
+        :param y_emb: [512, 14]
+        :return:
+        '''
+        # y_emb = y_emb.T.unsqueeze(0)
+
+        y_emb = y_emb.T.unsqueeze(0).unsqueeze(1)
+        x = x.unsqueeze(2)
+        output = x * y_emb
+        output = self.W(output)  # [batch_size, view_count, label_count, embedding_dim]
+        output = output.sum(dim=1).squeeze(1)  # view sum pooling
+        output = output.sum(dim=1).squeeze(1)  # label sum pooling
+        return output
+
+    def forward(self, features, labels):
+        view_features = []
+        comm_features = []
+        feat_outs = []
+
+        for v in range(self.view_count):
+            x = features[v]
+            view_feature = self.encoders[v](x)
+            comm_feature = self.fc_comm_extract(view_feature)
+
+            view_features.append(view_feature)
+            comm_features.append(comm_feature)
+
+        # view_features = torch.cat(view_features, dim=1)
+        # comm_features = torch.stack(comm_features).mean(dim=0)
+
+        # feature_embedding = torch.cat((view_features, comm_features), dim=1)
+
+            # h = normalize(self.feature_contrastive_module(z), dim=1)
+            # x_z = torch.cat([x, z], dim=1)
+            # xr = self.decoders[v](z)
+            # zs.append(z)
+            # hs.append(h)
+            # feat_embs.append(xr)
+            # cls.append(self.classifier(xr))
+
+        embs = self.fe0.weight  # label embedding
+
+        if self.args.attention:
+            comm_features = self.attention(comm_features, embs)  # label guide common feature fusion
+
+        feat_embs, feat_mu, feat_logvar = self.feat_forward(view_features, comm_features)
+        label_emb, label_z, label_mu, label_logvar = self.label_forward(labels)
+
+        for v in range(self.view_count):
+            feat_outs.append(torch.sigmoid(torch.matmul(feat_embs[v], embs)))
+
+        label_out = torch.sigmoid(torch.matmul(label_emb, embs))
+
+        return label_out, label_mu, label_logvar, feat_outs, feat_mu, feat_logvar
+
 
 def label_propagation(args, Wn, L, Y_pred, Y_P_train, Z_current, gamma, alpha, zeta, maxiter):
     beta = 1  # set beta as the pivot
