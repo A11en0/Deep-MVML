@@ -34,8 +34,8 @@ def run(args, save_dir, file_name):
     fold_list = []
     rets = np.zeros((Fold_numbers, 11))
     for fold in range(Fold_numbers):
-        if fold == 1:
-            break
+        # if fold == 1:
+        #     break
 
         TEST_SPLIT_INDEX = fold
         print('-' * 50 + '\n' + 'Fold: %s' % fold)
@@ -83,8 +83,8 @@ def run(args, save_dir, file_name):
     # means = means[_index]*5
     # stds = stds[_index]*5
 
-    mean_choose = means[_index][-1, :]*5
-    std_choose = means[_index][-1, :]*5
+    mean_choose = means[_index][-1, :]
+    std_choose = means[_index][-1, :]
 
     print("\n------------summary--------------")
     print("Best Epoch: ", _index[0])
@@ -136,14 +136,14 @@ if __name__ == '__main__':
     # device = 'cpu'
 
     # tune parameters
-    # datanames = ['yeast.mat', 'scene.mat', 'Pascal.mat',  'emotions.mat', 'Corel5k.mat', 'Mirflickr.mat', 'Espgame.mat']
+    datanames = ['Yeast', 'Scene', 'Pascal',  'Emotions', 'Iaprtc12', 'Corel5k', 'Mirflickr', 'Espgame']
     # datanames = ['yeast', 'scene', 'emotions', ]  # epoch25 / latent64 / lr 1e-3
 
-    # datanames = ['Emotions']
+    datanames = ['Emotions']
     # datanames = ['Scene']
     # datanames = ['Yeast']
     # datanames = ['Pascal']
-    datanames = ['Corel5k']  # bug
+    # datanames = ['Corel5k']  # bug
     # datanames = ['Mirflickr']
     # datanames = ['Espgame']
     # datanames = ['Iaprtc12']
@@ -151,10 +151,14 @@ if __name__ == '__main__':
     # lrs = [1e-2, 1e-3, 1e-4, 1e-5]
     # lrs = [1e-3]
     lrs = [1e-3]
-    etas = [5e-3]
+
+    # etas = [1e-2, 1e-3, 5e-3, 1e-4, 5e-4, 5e-5]
+    etas = [1e-3]
+    # zetas = [1e-2, 1e-3, 5e-3, 1e-4, 5e-4, 5e-5]
+    # alphas = [10, 5, 2, 1, 1e-2, 1e-3, 5e-3, 1e-4, 5e-4, 5e-5]
 
     noise_rates = [0.3, 0.5, 0.7]
-    # noise_rates = [0.0]
+    # noise_rates = [0.7]
 
     # for kl_coef in kl_coef_lists:
     for eta in etas:
@@ -163,12 +167,13 @@ if __name__ == '__main__':
                 for p in noise_rates:
                     args.lr = lr
                     args.DATA_SET_NAME = dataname
-                    args.eta = eta
                     args.noise_rate = p
 
                     save_dir = f'results/{args.DATA_SET_NAME}/'
                     file_name = f'{args.DATA_SET_NAME}_bs{args.batch_size}_ml{args.coef_ml}_' \
                                 f'kl{args.coef_kl}_epoch{args.epoch}_lr{args.lr}_com{args.common_feature_dim}_' \
-                                f'lat{args.latent_dim}_p{args.noise_rate}.txt'
+                                f'lat{args.latent_dim}_p{args.noise_rate}-eta{args.eta}-zeta{args.zeta}-alpha{args.alpha}.txt'
                     run(args, save_dir, file_name)
+
+
 

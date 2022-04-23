@@ -21,9 +21,10 @@ class Args:
         self.momentumae = 0.9
 
         self.gamma = 0.1  # [0.001, 0.01, 0.1] 1
+
         self.alpha = 1  # [0.1, 1, 10] 1
-        self.zeta = 0.01  # [0.001, 0.01, 0.1] 1
-        self.eta = 5e-3  # lr
+        self.zeta = 1e-4  # [0.001, 0.01, 0.1] 1
+        self.eta = 1e-3  # lr
         self.maxiter = 200
 
         self.neighbors_num = 10

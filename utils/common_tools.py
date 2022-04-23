@@ -59,6 +59,8 @@ def load_mat_data(file_name, need_zscore=False):
             i += 1
     return views_features, target, idx_list
 
+
+
 def load_mat_data_v2(file_name, need_zscore=False):
     try:
         dataset = loadmat(file_name)

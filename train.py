@@ -72,9 +72,10 @@ class Trainer(object):
     def fit(self, fold, train_features, train_partial_labels, test_features, test_labels, args=None):
         loss_list = []
 
-        Wn = 0.0
         best_F1 = 0.0
         best_epoch = 0
+        train_partial_labels_np, train_pred_np, train_pred_np, train_lp_np, labels_lp = [], [], [], [], []
+        Wn, L = [], []
 
         if not os.path.exists(self.model_save_dir):
             os.makedirs(self.model_save_dir)

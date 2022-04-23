@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from config import *
 from train import train, test
 from layer.view_block import ViewBlock
-from models import Model, ModelEmbedding
+from models import Model
 from train import test, Trainer
 from utils.common_tools import split_data_set_by_idx, ViewsDataset, load_mat_data, init_random_seed
 
@@ -59,11 +59,7 @@ def run(device, args, save_dir, file_name):
 
         label_nums = train_labels.shape[1]
 
-        # load model
-        if args.le:
-            model = ModelEmbedding(view_blocks, args.common_feature_dim, label_nums, device, args).to(device)
-        else:
-            model = Model(view_blocks, args.common_feature_dim, label_nums, device, args).to(device)
+        model = Model(view_blocks, args.common_feature_dim, label_nums, device, args).to(device)
 
         print(model)
 

@@ -76,6 +76,7 @@ def label_propagation(args, Wn, L, Y_pred, Y_P_train, Z_current, gamma, alpha, z
             W_matmul_Z_g = torch.from_numpy(Wn.dot(Z_g.cpu().numpy())).detach().cuda()
             grad = gamma * (Z_g - W_matmul_Z_g) + alpha * (Z_g - Y_P_train_g) + \
                    beta * (Z_g - Y_pred_g) + zeta * (Z_g - Z_g @ L_g)
+            # grad = alpha * (Z_g - Y_P_train_g) + beta * (Z_g - Y_pred_g) + zeta * (Z_g - Z_g @ L_g)
             Z_g = Z_g - eta * grad
 
     Z = Z_g.detach().cpu().numpy()
