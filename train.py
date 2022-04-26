@@ -19,7 +19,7 @@ def test(model, features, labels, weight_var, device, model_state_path=None, is_
     metrics_results = None
 
     model.eval()
-
+    
     # CUDA
     for i, _ in enumerate(features):
         features[i] = features[i].to(device)
@@ -109,6 +109,7 @@ class Trainer(object):
 
                 # classification loss
                 for v in range(len(feat_outs)):
+                    # 采用多标签设置
                     loss_tmp = F.binary_cross_entropy(feat_outs[v], labels)
                     _cls_loss.append(weight_var[v] ** self.args.gamma * loss_tmp)
                     weight_up_temp = loss_tmp ** (1 / (1 - self.args.gamma))

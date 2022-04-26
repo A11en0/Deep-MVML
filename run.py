@@ -40,6 +40,9 @@ def run(device, args, save_dir, file_name):
     fold_list, metrics_results = [], []
     rets = np.zeros((Fold_numbers, 11))  # 11 metrics
     for fold in range(Fold_numbers):
+        if fold == 1:
+            break
+
         TEST_SPLIT_INDEX = fold
         print('-' * 50 + '\n' + 'Fold: %s' % fold)
         train_features, train_labels, train_partial_labels, test_features, test_labels = split_data_set_by_idx(
@@ -88,22 +91,25 @@ def run(device, args, save_dir, file_name):
 
     means = np.mean(rets, axis=0)
     stds = np.std(rets, axis=0)
-    _index = np.argsort(means[:, 0])
-    means = means[_index]
-    stds = stds[_index]
+    _index = np.argsort(means[:, 6])
+    # means = means[_index]
+    # stds = stds[_index]
+
+    mean_choose = means[_index][-1, :]*5
+    std_choose = stds[_index][-1, :]
 
     print("\n------------summary--------------")
-    print("Best Epoch: ", _index[0])
+    print("Best Epoch: ", _index[-1])
     metrics_list = list(metrics_results.keys())
 
     with open(save_name, "w") as f:
-        for i, _ in enumerate(means[0, :]):
-            print("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=means[0, :][i],
-                                                           std=stds[0, :][i]))
-            f.write("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=means[0, :][i],
-                                                           std=stds[0, :][i]))
+        for i, _ in enumerate(mean_choose):
+            print("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=mean_choose[i],
+                                                           std=std_choose[i]))
+            f.write("{metric}\t{means:.4f}±{std:.4f}".format(metric=metrics_list[i], means=mean_choose[i],
+                                                           std=std_choose[i]))
             f.write("\n")
-        f.write(str(_index[0]))
+        f.write(str(_index[-1]))
 
 
 if __name__ == '__main__':
@@ -117,21 +123,22 @@ if __name__ == '__main__':
     lrs = [6e-4]
 
     # noise_rates = [0.0, 0.3, 0.5, 0.7]
-    noise_rates = [0.0]
+    noise_rates = [0.3]
 
     # datanames = ['Emotions', 'Scene', 'Yeast', 'Pascal', 'Iaprtc12', 'Corel5k', 'Mirflickr', 'Espgame']
     # label_nums = [6, 6, 14, 20, 291, 260, 38, 268]
 
     # datanames = ['Mirflickr', 'Emotions', 'Yeast', 'Scene', 'Pascal']
-    # label_nums = [64]
+    # label_nums = [6]
 
-    datanames = ['Iaprtc12', 'Corel5k','Espgame']
-    label_nums = [300]
+    # datanames = ['Iaprtc12', 'Corel5k', 'Espgame']
+    # datanames = ['Emotions']
+    # label_nums = [300]
 
     # datanames = ['Emotions']
     # datanames = ['Scene']
     # datanames = ['Yeast']
-    # datanames = ['Pascal']
+    datanames = ['Pascal']
     # datanames = ['Iaprtc12']
     # datanames = ['Corel5k']
     # datanames = ['Mirflickr']
@@ -150,36 +157,37 @@ if __name__ == '__main__':
     for i, dataname in enumerate(datanames):
         for p in noise_rates:
             for lr in lrs:
-                # for coef_cl in np.arange(0, 1, 0.2):
-                # for i in range(MAX_EVALS):
+                # for coef_cl in np.arange(0, 1, 0.1):
+                    # for i in range(MAX_EVALS):
+                    args.DATA_SET_NAME = dataname
+                    args.noise_rate = p
+                    args.lr = lr
 
-                args.DATA_SET_NAME = dataname
-                args.noise_rate = p
-                args.lr = lr
-                # args.latent_dim = label_nums[i]
-                #     # Grid Search
-                #     for lat in param_grid['latent_dim']:
-                #         for hi in param_grid['high_feature_dim']:
-                #             for emd in param_grid['embedding_dim']:
-                #                 args.latent_dim = lat
-                #                 args.high_feature_dim = hi
-                #                 args.embedding_dim = emd
-                #
-                #                 save_dir = f'results/{dataname}/'
-                #                 save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-p{args.noise_rate}-r{args.noise_num}-' \
-                #                             f'lat{args.latent_dim}-hdim{args.high_feature_dim}-emd{args.embedding_dim}' \
-                #                             f'.txt-cl-ml'
-                #                 run(device, args, save_dir, save_name)
+                    # args.coef_cl = coef_cl
+                    # args.latent_dim = label_nums[i]
+                    #     # Grid Search
+                    #     for lat in param_grid['latent_dim']:
+                    #         for hi in param_grid['high_feature_dim']:
+                    #             for emd in param_grid['embedding_dim']:
+                    #                 args.latent_dim = lat
+                    #                 args.high_feature_dim = hi
+                    #                 args.embedding_dim = emd
+                    #
+                    #                 save_dir = f'results/{dataname}/'
+                    #                 save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-p{args.noise_rate}-r{args.noise_num}-' \
+                    #                             f'lat{args.latent_dim}-hdim{args.high_feature_dim}-emd{args.embedding_dim}' \
+                    #                             f'.txt-cl-ml'
+                    #                 run(device, args, save_dir, save_name)
 
-                # args.coef_cl = coef_cl
-                # args.coef_ml = 1 - args.coef_cl
+                    # args.coef_cl = coef_cl
+                    # args.coef_ml = 1 - args.coef_cl
 
-                save_dir = f'results/{args.DATA_SET_NAME}/'
-                save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-p{args.noise_rate}-r{args.noise_num}-' \
-                            f'lat{args.latent_dim}-hdim{args.high_feature_dim}-emd{args.embedding_dim}-' \
-                            f'coef_cl{args.coef_cl}.txt-'
+                    save_dir = f'results/{args.DATA_SET_NAME}/'
+                    save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-p{args.noise_rate}-r{args.noise_num}-' \
+                                f'lat{args.latent_dim}-hdim{args.high_feature_dim}-emd{args.embedding_dim}-' \
+                                f'coef_ml-{args.coef_ml}-coef_cl{args.coef_cl}-weight{args.weight_decay}-gamma{args.gamma}.txt'
 
-                run(device, args, save_dir, save_name)
+                    run(device, args, save_dir, save_name)
 
                 # 随机搜索
                 # random_params = {k: random.sample(v, 1)[0] for k, v in param_grid.items()}
