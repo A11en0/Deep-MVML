@@ -86,34 +86,39 @@ class Network(nn.Module):
 
         self.classifier = nn.Sequential(
             nn.Linear(num_view * embedding_dim, class_num),
-            # nn.Linear(embedding_dim, class_num),
+            # nn.Linear(256, 128),
             # nn.BatchNorm1d(128),
             # nn.ReLU(inplace=True),
             # nn.Dropout(),
             # nn.Linear(128, class_num),
             # nn.BatchNorm1d(class_num),
-            nn.Sigmoid()
+            # nn.Sigmoid()
         )
 
         self.view = num_view
 
     def forward(self, xs, labels):
         feat_embs = []
+        hs = []
+        zs = []
 
         # embs = self.label_emb_layer.weight  # label embedding
-
         for v in range(self.view):
             x = xs[v]
             z = self.encoders[v](x)
-            # h = self.feature_contrastive_module(z)
+            h = self.feature_contrastive_module(z)
             xr = self.decoders[v](z)
-            # zs.append(z)
-            # hs.append(h)
+            zs.append(z)
+            hs.append(h)
             feat_embs.append(xr)
             # cls.append(self.classifier(xr))
 
-        features = torch.cat(feat_embs, dim=1)
-        outputs = self.classifier(features)
+        return feat_embs, hs, zs, None
+
+        # features = torch.cat(feat_embs, dim=1)
+        # return features
+
+        # outputs = self.classifier(features)
 
         # _label_emb = self.label_emb_layer(labels)
         # z_label = self.label_encoder(_label_emb)
@@ -121,7 +126,7 @@ class Network(nn.Module):
         # label_emb = self.label_decoder(z_label)
         # label_out = torch.sigmoid(torch.matmul(label_emb, embs))
 
-        return outputs, None, None, None
+        # return outputs, None, None, None
         # for v in range(self.view):
         #     feat_outs.append(torch.sigmoid(torch.matmul(feat_embs[v], embs)))
 
@@ -200,3 +205,23 @@ class Network(nn.Module):
             qs.append(q)
             preds.append(pred)
         return qs, preds
+
+class LinearClassifier(nn.Module):
+    def __init__(self, num_view, embedding_dim, class_num):
+        super(LinearClassifier, self).__init__()
+
+        self.classifier = nn.Sequential(
+            nn.Linear(num_view * embedding_dim, class_num),
+            # nn.Linear(embedding_dim, class_num),
+            # nn.BatchNorm1d(128),
+            # nn.ReLU(inplace=True),
+            # nn.Dropout(),
+            # nn.Linear(128, class_num),
+            # nn.BatchNorm1d(class_num),
+            nn.Sigmoid()
+        )
+
+    def forward(self, view_features):
+        return self.classifier(view_features)
+
+
