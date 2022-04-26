@@ -159,11 +159,11 @@ if __name__ == '__main__':
     # datanames = ['Iaprtc12', 'Corel5k', 'Espgame']
     # label_nums = [300]
 
-    # datanames = ['Emotions']
+    datanames = ['Emotions']
     # datanames = ['Scene']
     # datanames = ['Yeast']
     # datanames = ['Pascal']
-    datanames = ['Iaprtc12']
+    # datanames = ['Iaprtc12']
     # datanames = ['Corel5k']
     # datanames = ['Mirflickr']
     # datanames = ['Espgame']
@@ -206,7 +206,7 @@ if __name__ == '__main__':
                     save_dir = f'results/{args.DATA_SET_NAME}/'
                     save_name = f'{args.DATA_SET_NAME}-epoch{args.epochs}-lr{args.lr}-p{args.noise_rate}-r{args.noise_num}-' \
                                 f'lat{args.latent_dim}-hdim{args.high_feature_dim}-emd{args.embedding_dim}-' \
-                                f'-weight{args.weight_decay}.txt-withCL'
+                                f'-weight{args.weight_decay}.txt-'
 
                     run(device, args, save_dir, save_name)
 

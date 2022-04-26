@@ -13,7 +13,7 @@ class Args:
         # self.epoch_used_for_final_result = 4
         self.model_save_epoch = 20
         self.model_save_dir = 'model_save_dir'
-        self.resume = True
+        self.resume = False
 
         self.is_test_in_train = True
         self.batch_size = 512
