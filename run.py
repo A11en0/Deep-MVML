@@ -183,9 +183,9 @@ if __name__ == '__main__':
                     # args.coef_ml = 1 - args.coef_cl
 
                     save_dir = f'results/{args.DATA_SET_NAME}/'
-                    save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-p{args.noise_rate}-r{args.noise_num}-' \
+                    save_name = f'{args.DATA_SET_NAME}-epoch{args.epochs}-lr{args.lr}-p{args.noise_rate}-r{args.noise_num}-' \
                                 f'lat{args.latent_dim}-hdim{args.high_feature_dim}-emd{args.embedding_dim}-' \
-                                f'coef_ml-{args.coef_ml}-coef_cl{args.coef_cl}-weight{args.weight_decay}-gamma{args.gamma}.txt'
+                                f'-weight{args.weight_decay}.txt'
 
                     run(device, args, save_dir, save_name)
 

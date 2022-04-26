@@ -85,8 +85,8 @@ class Network(nn.Module):
         # )
 
         self.classifier = nn.Sequential(
-            # nn.Linear(num_view * embedding_dim, common_embedding_dim),
-            nn.Linear(embedding_dim, class_num),
+            nn.Linear(num_view * embedding_dim, class_num),
+            # nn.Linear(embedding_dim, class_num),
             # nn.BatchNorm1d(128),
             # nn.ReLU(inplace=True),
             # nn.Dropout(),
@@ -98,6 +98,37 @@ class Network(nn.Module):
         self.view = num_view
 
     def forward(self, xs, labels):
+        feat_embs = []
+
+        # embs = self.label_emb_layer.weight  # label embedding
+
+        for v in range(self.view):
+            x = xs[v]
+            z = self.encoders[v](x)
+            # h = self.feature_contrastive_module(z)
+            xr = self.decoders[v](z)
+            # zs.append(z)
+            # hs.append(h)
+            feat_embs.append(xr)
+            # cls.append(self.classifier(xr))
+
+        features = torch.cat(feat_embs, dim=1)
+        outputs = self.classifier(features)
+
+        # _label_emb = self.label_emb_layer(labels)
+        # z_label = self.label_encoder(_label_emb)
+        # x_z_label = torch.cat([_label_emb, z_label], dim=1)
+        # label_emb = self.label_decoder(z_label)
+        # label_out = torch.sigmoid(torch.matmul(label_emb, embs))
+
+        return outputs, None, None, None
+        # for v in range(self.view):
+        #     feat_outs.append(torch.sigmoid(torch.matmul(feat_embs[v], embs)))
+
+        # return cls, feat_embs, hs, zs
+        # return feat_outs, label_out, hs, zs
+
+    def forward_label_embeding(self, xs, labels):
         feat_embs = []
         feat_outs = []
         hs = []

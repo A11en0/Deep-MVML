@@ -8,7 +8,7 @@ class Args:
     def __init__(self):
         self.DATA_ROOT = '/home/allen/Datasets/MVML'
         self.DATA_SET_NAME = 'Emotions'
-        self.epochs = 30
+        self.epochs = 100
         self.show_epoch = 1
         # self.epoch_used_for_final_result = 4
         self.model_save_epoch = 10
@@ -28,7 +28,7 @@ class Args:
         self.temperature_f = 0.5
         self.temperature_l = 1.0
 
-        self.latent_dim = 64  # 512 related-to label dim
+        self.latent_dim = 256  # 512 related-to label dim
         self.high_feature_dim = 512  # 256
         self.embedding_dim = 512  # 256
 
