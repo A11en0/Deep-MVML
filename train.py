@@ -69,6 +69,13 @@ class Trainer(object):
             self.opti = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
         elif args.opt == 'sgd':
             self.opti = optim.SGD(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+        elif args.opt == 'adagrad':
+            self.opti = optim.Adagrad(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+        elif args.opt == 'adadelta':
+            self.opti = optim.Adadelta(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+        elif args.opt == 'rmsprop':
+            self.opti = optim.RMSprop(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+
 
         self.lr_s = torch.optim.lr_scheduler.StepLR(self.opti, step_size=20, gamma=0.9)
 
@@ -101,11 +108,10 @@ class Trainer(object):
                 weight_up_list = []
 
                 # contrastive loss
-                for v in range(self.model.view):
-                    for w in range(v + 1, self.model.view):
-                        _cl_loss.append(criterion.info_nce_loss(hs[v], hs[w]))
-                    # _cl_loss.append(mse(xs[v], xrs[v]))
-                cl_loss = sum(_cl_loss)
+                # for v in range(self.model.view):
+                #     for w in range(v + 1, self.model.view):
+                #         _cl_loss.append(criterion.info_nce_loss(hs[v], hs[w]))
+                # cl_loss = sum(_cl_loss)
 
                 # classification loss
                 for v in range(len(feat_outs)):
@@ -131,13 +137,15 @@ class Trainer(object):
 
                 nll_loss_x = sum(_cls_loss)
                 nll_loss_y = F.binary_cross_entropy(label_out, labels)
-                ml_loss = 0.5*(nll_loss_x + nll_loss_y)
+                ml_loss = (nll_loss_x + nll_loss_y)
 
                 # for v in range(len(cls)):
                 #     _cls_loss.append(F.binary_cross_entropy(cls[v], labels))
                 # cls_loss = sum(_cls_loss)
 
-                loss = self.args.coef_cl*cl_loss + self.args.coef_ml*ml_loss
+                cl_loss = 0.0
+                # loss = self.args.coef_cl * cl_loss + self.args.coef_ml * ml_loss
+                loss = self.args.coef_ml * ml_loss
 
                 # reconstruction loss
                 # for v in range(len(xrs)):

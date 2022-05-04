@@ -84,16 +84,19 @@ class Network(nn.Module):
         #     nn.Softmax(dim=1)
         # )
 
-        self.classifier = nn.Sequential(
+        # self.classifier = nn.Sequential(
             # nn.Linear(num_view * embedding_dim, common_embedding_dim),
-            nn.Linear(embedding_dim, class_num),
+            # nn.Linear(embedding_dim, class_num),
             # nn.BatchNorm1d(128),
             # nn.ReLU(inplace=True),
             # nn.Dropout(),
             # nn.Linear(128, class_num),
             # nn.BatchNorm1d(class_num),
-            nn.Sigmoid()
-        )
+            # nn.Sigmoid()
+        # )
+
+        self.lat_bn = nn.BatchNorm1d(latent_dim)
+        self.emb_bn = nn.BatchNorm1d(latent_dim)
 
         self.view = num_view
 
@@ -102,21 +105,23 @@ class Network(nn.Module):
         feat_outs = []
         hs = []
         zs = []
-        cls = []
+        # cls = []
         embs = self.label_emb_layer.weight  # label embedding
 
         for v in range(self.view):
             x = xs[v]
             z = self.encoders[v](x)
-            h = self.feature_contrastive_module(z)
+            # h = self.feature_contrastive_module(z)
             # x_z = torch.cat([x, z], dim=1)
-
             # xr = self.decoders[v](z)
+            # z = self.lat_bn(z)
             xr = self.decoders[v](z)
+            # xr = self.emb_bn(xr)
+
             zs.append(z)
-            hs.append(h)
+            # hs.append(h)
             feat_embs.append(xr)
-            cls.append(self.classifier(xr))
+            # cls.append(self.classifier(xr))
 
         _label_emb = self.label_emb_layer(labels)
         z_label = self.label_encoder(_label_emb)
