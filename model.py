@@ -137,8 +137,8 @@ class Network(nn.Module):
         for v in range(self.view):
             feat_outs.append(torch.sigmoid(torch.matmul(feat_embs[v], embs)))
 
-        # return cls, feat_embs, hs, zs
         return feat_outs, label_out, hs, zs
+        # return cls, feat_embs, hs, zs
 
     def forward_old(self, xs):
         hs = []
@@ -179,6 +179,8 @@ class Network(nn.Module):
             qs.append(q)
             preds.append(pred)
         return qs, preds
+
+
 
 
 def label_propagation(args, Wn, L, Y_pred, Y_P_train, Z_current, mu, alpha, zeta, maxiter):

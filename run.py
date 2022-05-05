@@ -136,10 +136,10 @@ if __name__ == '__main__':
     # datanames = ['Emotions']
     # label_nums = [300]
 
-    datanames = ['Emotions']
+    # datanames = ['Emotions']
     # datanames = ['Scene']
     # datanames = ['Yeast']
-    # datanames = ['Pascal']
+    datanames = ['Pascal']
     # datanames = ['Iaprtc12']
     # datanames = ['Corel5k']
     # datanames = ['Mirflickr']
