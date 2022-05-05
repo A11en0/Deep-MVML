@@ -13,6 +13,16 @@ class Args:
         # self.epoch_used_for_final_result = 4
         self.model_save_epoch = 10
         self.model_save_dir = 'model_save_dir'
+        self.no_verbose = True
+        self.momentumae = 0.9
+
+        self.using_lp = False
+        self.mu = 0.1  # [0.001, 0.01, 0.1] 1
+        self.alpha = 1  # [0.1, 1, 10] 1
+        self.zeta = 1e-2  # [0.001, 0.01, 0.1] 1
+        self.eta = 1e-2  # lr
+        self.maxiter = 200
+        self.neighbors_num = 10
 
         self.is_test_in_train = True
         self.batch_size = 512
@@ -28,9 +38,9 @@ class Args:
         self.temperature_f = 0.5
         self.temperature_l = 1.0
 
-        self.latent_dim = 256  # 512 related-to label dim
-        self.high_feature_dim = 1024  # 256
-        self.embedding_dim = 256  # 256
+        self.latent_dim = 64  # 512 related-to label dim
+        self.high_feature_dim = 512  # 256
+        self.embedding_dim = 512  # 256
 
         self.coef_cl = 0.0
         self.coef_ml = 1.0
