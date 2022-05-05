@@ -1,5 +1,5 @@
-# Deep-BR
-The implementation of Deep-BR using PyTorch.
+# Deep-MVML
+The implementation of Deep-MVML using PyTorch.
 
 # Sample Dataset
 We use emotions as our running example since it is commonly used and has a moderate size. Dataset location: datasets/emotions
