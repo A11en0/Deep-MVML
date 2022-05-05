@@ -2,5 +2,5 @@ __pycache__
 /model_save_dir
 /runs
 /datasets_old
-results*
+/results*
 /.idea
