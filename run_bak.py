@@ -136,10 +136,10 @@ if __name__ == '__main__':
     # device = 'cpu'
 
     # tune parameters
-    datanames = ['Yeast', 'Scene', 'Pascal',  'Emotions', 'Iaprtc12', 'Corel5k', 'Mirflickr', 'Espgame']
+    # datanames = ['Yeast', 'Scene', 'Pascal',  'Emotions', 'Iaprtc12', 'Corel5k', 'Mirflickr', 'Espgame']
     # datanames = ['yeast', 'scene', 'emotions', ]  # epoch25 / latent64 / lr 1e-3
 
-    datanames = ['Emotions']
+    # datanames = ['Emotions']
     # datanames = ['Scene']
     # datanames = ['Yeast']
     # datanames = ['Pascal']
@@ -147,6 +147,7 @@ if __name__ == '__main__':
     # datanames = ['Mirflickr']
     # datanames = ['Espgame']
     # datanames = ['Iaprtc12']
+    datanames = ['Iaprtc12', 'Mirflickr', 'Espgame', 'Corel5k', 'Pascal']
 
     # lrs = [1e-2, 1e-3, 1e-4, 1e-5]
     # lrs = [1e-3]
