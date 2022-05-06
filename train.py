@@ -1,21 +1,25 @@
 # -*- coding: UTF-8 -*-
 import os
+from functools import reduce
+
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 
 from models import label_propagation, build_graph, estimating_label_correlation_matrix
-from utils.common_loss import compute_loss
-from utils.ml_metrics import all_metrics, RankingLoss
+from utils.common_loss import compute_loss, calc_kl_loss
+from utils.new_ml_metrics import all_metrics, RankingLoss
 
 
 def train(model, device, views_data_loader, args, loss_coefficient,
-          train_features, train_partial_labels, test_features, test_labels,
-          weight_decay=1e-5, fold=1):
+          train_features, train_partial_labels, test_features, test_labels, fold=1):
 
     # init optimizer
-    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=weight_decay)
+    if args.opt == 'adam':
+        optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    else:
+        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentumae)
 
     # train model
     trainer = Trainer(model, views_data_loader, args.epoch, optimizer, args.show_epoch,
@@ -40,12 +44,7 @@ def test(model, features, labels, device, model_state_path=None, is_eval=False, 
 
     # prediction
     with torch.no_grad():
-        if args.ae:
-            recons, outputs = model(features)
-        elif args.le:
-            outputs_y, label_mu, label_logvar, outputs, feat_mu, feat_logvar = model(features, labels)
-        else:
-            outputs = model(features)
+        outputs = model(features)
 
     outputs = outputs.cpu().numpy()
     preds = (outputs > 0.5).astype(int)
@@ -70,26 +69,27 @@ class Trainer(object):
         self.model_save_dir = model_save_dir
         self.device = device
 
-        self.latent_I = torch.eye(64).to(device)
-
     def fit(self, fold, train_features, train_partial_labels, test_features, test_labels, args=None):
         loss_list = []
-        kl_loss = _RL_loss = 0.0
-        Wn = 0.0
 
-        # writer = SummaryWriter()
+        best_F1 = 0.0
+        best_epoch = 0
+        train_partial_labels_np, train_pred_np, train_pred_np, train_lp_np, labels_lp = [], [], [], [], []
+        Wn, L = [], []
+
         if not os.path.exists(self.model_save_dir):
             os.makedirs(self.model_save_dir)
 
-        train_partial_labels_np = train_partial_labels.numpy().copy()
-        train_pred_np = train_partial_labels_np.copy()
-        train_lp_np = train_partial_labels_np.copy()
+        if args.using_lp:
+            train_partial_labels_np = train_partial_labels.numpy().copy()
+            train_pred_np = train_partial_labels_np.copy()
+            train_lp_np = train_partial_labels_np.copy()
 
-        for id, view_feature in train_features.items():
-            view_feature = view_feature.numpy()
-            Wn += build_graph(view_feature, k=args.neighbors_num, args=args)
+            for id, view_feature in train_features.items():
+                view_feature = view_feature.numpy()
+                Wn += build_graph(view_feature, k=args.neighbors_num, args=args)
 
-        L = estimating_label_correlation_matrix(train_partial_labels_np)
+            L = estimating_label_correlation_matrix(train_partial_labels_np)
 
         for epoch in range(self.epoch):
             self.model.train()
@@ -110,54 +110,23 @@ class Trainer(object):
                 for i, _ in enumerate(inputs):
                     inputs[i] = inputs[i].to(self.device)
                 labels = labels.to(self.device)
+                outputs = self.model(inputs)
 
-                if args.ae:
-                    recons, outputs = self.model(inputs, labels)
-                    for i, _ in enumerate(inputs):
-                        _RL_loss = _RL_loss + F.mse_loss(recons[i], inputs[i])
-                    _RL_loss = _RL_loss / len(inputs)
-                elif args.le:
-                    # predict / feature embedding / label embedding
-                    label_out, label_mu, label_logvar, feat_out, feat_mu, feat_logvar = self.model(inputs, labels)
-                    kl_loss = compute_loss(labels, label_out, label_mu, label_logvar, feat_out, feat_mu, feat_logvar, args)
+                if args.using_lp:
+                    ml_loss = F.binary_cross_entropy(outputs, labels_lp)
                 else:
-                    outputs = self.model(inputs)
+                    ml_loss = F.binary_cross_entropy(outputs, labels)
 
-                if args.le:
-                    if args.using_lp:
-                        nll_loss_x = F.binary_cross_entropy(feat_out, labels_lp)
-                        nll_loss_y = F.binary_cross_entropy(label_out, labels_lp)
-                        _ML_loss = 0.5*(nll_loss_x + nll_loss_y)
-                    else:
-                        nll_loss_x = F.binary_cross_entropy(feat_out, labels)
-                        nll_loss_y = F.binary_cross_entropy(label_out, labels)
-                        _ML_loss = 0.5*(nll_loss_x + nll_loss_y)
-                else:
-                    if args.using_lp:
-                        _ML_loss = F.binary_cross_entropy(outputs, labels_lp)
-                    else:
-                        _ML_loss = F.binary_cross_entropy(outputs, labels)
+                loss = args.coef_ml * ml_loss
 
-                loss = args.coef_ml * _ML_loss
-
-                if args.ae:
-                    loss += self.loss_coefficient['RL_loss'] * _RL_loss
-                    print_str = f'Epoch: {epoch}\t ML Loss: {_ML_loss.item():.4f}\tRL Loss: ' \
-                                f'{_RL_loss.item():.4f}\tTotal Loss: {loss.item():.4f}'
-                elif args.le:
-                    loss += kl_loss * args.coef_kl
-                    print_str = f'Epoch: {epoch}\t ML Loss: {_ML_loss.item():.4f}\tKL Loss: ' \
-                                f'{kl_loss.item():.4f}\tTotal Loss: {loss.item():.4f}'
-                else:
-                    print_str = f'Epoch: {epoch}\t ML Loss: {_ML_loss.item():.4f}\t' \
+                print_str = f'Epoch: {epoch}\t ML Loss: {ml_loss.item():.4f}\t' \
                                 f'RL Loss: Total Loss: {loss.item():.4f}'
 
                 # show loss info
                 if epoch % self.show_epoch == 0 and step == 0:
                     epoch_loss = dict()
-                    epoch_loss['ML_loss'] = _ML_loss.item()
-                    # writer.add_scalar("Loss/train", _ML_loss, epoch)  # log
-                    # plotter.plot('loss', 'train', 'Class Loss', epoch, _ML_loss)
+                    # writer.add_scalar("Loss/train", ml_loss, epoch)  # log
+                    # plotter.plot('loss', 'train', 'Class Loss', epoch, ml_loss)
                     loss_list.append(epoch_loss)
                     print(print_str)
 
@@ -171,25 +140,23 @@ class Trainer(object):
                                                   self.device, is_eval=False, args=args)
 
             # evaluation
-            if epoch % self.show_epoch == 0:
-                metrics_results, _ = test(self.model, test_features, test_labels,
-                                                  self.device, is_eval=True, args=args)
+            if epoch % self.show_epoch == 0 and args.is_test_in_train:
+                metrics_results, _ = test(self.model, test_features, test_labels, self.device, is_eval=True, args=args)
 
                 # draw figure to find best epoch number
-                loss_list[epoch]["Hamming"] = metrics_results[0][1]
-                loss_list[epoch]["Average"] = metrics_results[1][1]
-                loss_list[epoch]["OneError"] = metrics_results[2][1]
-                loss_list[epoch]["Ranking"] = metrics_results[3][1]
-                loss_list[epoch]["Coverage"] = metrics_results[4][1]
-                loss_list[epoch]["MacroF1"] = metrics_results[5][1]
-                loss_list[epoch]["MicroF1"] = metrics_results[6][1]
+                for i, key in enumerate(metrics_results):
+                    print(f"{key}: {metrics_results[key]:.4f}", end='\t')
+                    loss_list[epoch][key] = metrics_results[key]
+                print("\n")
+                if best_F1 < metrics_results['micro_f1']:
+                    best_F1, best_epoch = metrics_results['micro_f1'], epoch
 
             if (epoch + 1) % self.model_save_epoch == 0:
                 torch.save(self.model.state_dict(),
                         os.path.join(self.model_save_dir,
                                      'fold' + str(fold)+'_' + 'epoch' + str(epoch + 1) + '.pth'))
-        # writer.flush()
-        # writer.close()
+
+        print(f"best_F1: {best_F1}, epoch {best_epoch}")
         return loss_list
 
 

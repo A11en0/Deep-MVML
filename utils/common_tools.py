@@ -1,6 +1,5 @@
 # -*- coding: UTF-8 -*-
 import random
-
 from scipy.io import loadmat
 import numpy as np
 from sklearn import preprocessing
@@ -8,7 +7,7 @@ from torch.utils.data import Dataset
 import torch
 import h5py
 
-from utils.random_noise import random_noise
+from utils.random_noise import random_noise, random_noise_p_r
 
 
 def gen_idx_list(length):
@@ -23,11 +22,11 @@ def gen_idx_list(length):
 
     return idx
 
-def load_mat_data_v1(file_name, need_zscore=False):
+def load_mat_data(file_name, need_zscore=False):
     try:
         dataset = loadmat(file_name)
-        data = dataset['data'].T
-        target = dataset['target'].T
+        data = dataset['data']
+        target = dataset['target']
         target = np.array(target, dtype=np.float32)
         target = torch.from_numpy(target)
         idx_list = gen_idx_list(target.shape[0])
@@ -59,6 +58,8 @@ def load_mat_data_v1(file_name, need_zscore=False):
             views_features[i] = torch.from_numpy(view_feature)
             i += 1
     return views_features, target, idx_list
+
+
 
 def load_mat_data_v2(file_name, need_zscore=False):
     try:
@@ -105,7 +106,7 @@ def load_mat_data_v2(file_name, need_zscore=False):
             i += 1
     return views_features, target, idx_list
 
-def split_data_set_by_idx(features, labels, idx_list, test_split_id, partial_rate=3):
+def split_data_set_by_idx(features, labels, idx_list, test_split_id, args):
     train_idx_list = []
     test_idx_list = idx_list[test_split_id]
     for i in range(len(idx_list)):
@@ -121,24 +122,32 @@ def split_data_set_by_idx(features, labels, idx_list, test_split_id, partial_rat
         train_features[code] = value[train_idx_list]
         test_features[code] = value[test_idx_list]
 
-    train_partial_labels = torch.Tensor(random_noise(train_labels.numpy().copy(), partial_rate))
+    train_partial_labels, noise_nums = random_noise_p_r(train_labels.numpy().copy(), noise_rate=args.noise_rate, noise_num=args.noise_num)
+    train_partial_labels = torch.Tensor(train_partial_labels)
+    # train_partial_labels = torch.Tensor(random_noise(train_labels.numpy().copy(), partial_rate))
     return train_features, train_labels, train_partial_labels, test_features, test_labels
-
 
 class ViewsDataset(Dataset):
     def __init__(self, views_features, labels, device='cpu'):
         self.views_features = views_features
         self.labels = labels
         self.device = device
+        self.features = []
+        for item in range(labels.size(0)):
+            feature = {}
+            for key, value in self.views_features.items():
+                feature[key] = value[item]
+            self.features.append(feature)
 
     def __len__(self):
         return self.labels.shape[0]
 
     def __getitem__(self, item):
-        feature = {}
-        for key, value in self.views_features.items():
-            feature[key] = value[item]
-        return feature, self.labels[item], item
+        return self.features[item], self.labels[item], item
+        # feature = {}
+        # for key, value in self.views_features.items():
+        #     feature[key] = value[item]
+        # return feature, self.labels[item], item
 
 class MergeDataset(Dataset):
     def __init__(self, views_features, labels):

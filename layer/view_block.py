@@ -15,6 +15,18 @@ class ViewBlock(nn.Module):
         x_comm_feature = F.relu(self.fc_extract_comm(input),)
         return x_private, x_comm_feature
 
+class EncoderBlock(nn.Module):
+    def __init__(self, input_feature_num, output_feature_num):
+        super(EncoderBlock, self).__init__()
+        # self.code = code
+        # self.fc_extract_comm = nn.Linear(input_feature_num, output_feature_num)
+        self.fc_private = nn.Linear(input_feature_num, output_feature_num)
+
+    def forward(self, input):
+        x_private = F.relu(self.fc_private(input),)
+        # x_comm_feature = F.relu(self.fc_extract_comm(input),)
+        return x_private
+
 class DecoderBlock(nn.Module):
     def __init__(self, code, hidden_feature_num, output_feature_num):
         super(DecoderBlock, self).__init__()
