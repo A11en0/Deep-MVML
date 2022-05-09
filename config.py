@@ -6,7 +6,7 @@ TEST_SPLIT_INDEX = 1
 
 class Args:
     def __init__(self):
-        self.DATA_ROOT = '/home/allen/Datasets/MVML'
+        self.DATA_ROOT = 'C:/Users/wsco19/Desktop/Codes/datasets'
         self.DATA_SET_NAME = 'Emotions'
         self.epochs = 100
         self.show_epoch = 1
@@ -48,6 +48,7 @@ class Args:
         # self.coef_kl = 3.0
         # self.gamma = 2.0
 
+        self.using_weight = False
         self.gamma = 0.5
 
         self.keep_prob = 0.5

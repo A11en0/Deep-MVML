@@ -79,7 +79,7 @@ def run(device, args, save_dir, file_name):
 
         fold_list.append(loss_list)
 
-        metrics_results, _ = test(model, test_features, test_labels, weight_var, device, is_eval=True)
+        metrics_results, _ = test(model, test_features, test_labels, weight_var, device, is_eval=True, args=args)
 
         for i, key in enumerate(metrics_results):
             rets[fold][i] = metrics_results[key]
@@ -139,9 +139,9 @@ if __name__ == '__main__':
     # datanames = ['Emotions']
     # datanames = ['Scene']
     # datanames = ['Yeast']
-    datanames = ['Pascal']
+    # datanames = ['Pascal']
     # datanames = ['Iaprtc12']
-    # datanames = ['Corel5k']
+    datanames = ['Corel5k']
     # datanames = ['Mirflickr']
     # datanames = ['Espgame']
 

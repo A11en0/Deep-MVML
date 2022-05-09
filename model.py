@@ -116,13 +116,8 @@ class Network(nn.Module):
         for v in range(self.view):
             x = xs[v]
             z = self.encoders[v](x)
-            # h = self.feature_contrastive_module(z)
-            # x_z = torch.cat([x, z], dim=1)
-            # xr = self.decoders[v](z)
-            # z = self.lat_bn(z)
             xr = self.decoders[v](z)
-            # xr = self.emb_bn(xr)
-
+            
             zs.append(z)
             # hs.append(h)
             feat_embs.append(xr)
@@ -280,4 +275,5 @@ if __name__ == '__main__':
     # model = Model(features, common_feature_dim=64, label_num=20, model_args=None)
     # logit = model(features)
     # print(logit)
+
 
