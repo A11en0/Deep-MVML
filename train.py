@@ -1,19 +1,17 @@
 # -*- coding: UTF-8 -*-
 import os
-from functools import reduce
-
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
 # from torch.utils.tensorboard import SummaryWriter
 
-from model import estimating_label_correlation_matrix, build_graph, label_propagation
-from utils.loss import Loss
+# from model import estimating_label_correlation_matrix, build_graph, label_propagation
+from models.Disambiguation import estimating_label_correlation_matrix, build_graph, label_propagation
 from utils.ml_metrics import all_metrics
 
 
 @ torch.no_grad()
-def test(model, features, labels, weight_var, device, model_state_path=None, is_eval=False, args=None):
+def test(model, features, labels, device, model_state_path=None, is_eval=False, args=None):
     if model_state_path:
         model.load_state_dict(torch.load(model_state_path))
 
@@ -28,29 +26,7 @@ def test(model, features, labels, weight_var, device, model_state_path=None, is_
 
     # prediction
     with torch.no_grad():
-        feat_outs, label_out, hs, zs = model(features, labels)
-
-        # for v in range(len(feat_outs)):
-        #     loss_temp = criterion(feat_outs[v], labels)
-        #     loss += (weight_var[v] ** gamma) * loss_temp
-
-        if args.using_weight:
-            output_var = torch.stack(feat_outs)
-            weight_var = weight_var.unsqueeze(1)
-            output_weighted = weight_var * output_var
-            outputs = torch.sum(output_weighted, 0)
-
-        else:
-            outputs = torch.stack(feat_outs).mean(dim=0)
-
-        # weight_var = weight_var.unsqueeze(2)
-        # test = weight_var * output_var
-        # weight_var = weight_var.expand(weight_var.size(0), output_var.shape[1], output_var.shape[2])
-
-        # weight_var = weight_var[:, :, 1]
-        # weight_var = weight_var[:, 1]
-
-        # outputs = reduce(lambda x, y: x + y, feat_outs) / len(feat_outs)
+        outputs = model(features, labels)
 
     outputs = outputs.cpu().numpy()
     preds = (outputs > 0.5).astype(int)
@@ -92,14 +68,6 @@ class Trainer(object):
         train_partial_labels_np, train_pred_np, train_lp_np, labels_lp = [], [], [], []
         Wn, L = [], []
 
-        # writer = SummaryWriter()
-        mse = torch.nn.MSELoss()
-        criterion = Loss(self.args.batch_size, class_num, self.args.temperature_f, self.args.temperature_l,
-                         self.args, self.device).to(self.device)
-
-        weight_var = torch.ones(self.model.view, class_num) * (1 / self.model.view)
-        weight_var = weight_var.to(self.device)
-
         if not os.path.exists(self.model_save_dir):
             os.makedirs(self.model_save_dir)
 
@@ -134,10 +102,7 @@ class Trainer(object):
                     inputs[i] = inputs[i].to(self.device)
                 labels = labels.to(self.device)
 
-                feat_outs, label_out, hs, zs = self.model(inputs, labels)
-                _cl_loss = []
-                _cls_loss = []
-                weight_up_list = []
+                feat_outs = self.model(inputs, labels)
 
                 # contrastive loss
                 # for v in range(self.model.view):
@@ -147,79 +112,26 @@ class Trainer(object):
 
                 # classification loss
                 if self.args.using_lp:
-                    for v in range(len(feat_outs)):
-                        # 采用多标签设置
-                        _weight_var = weight_var[v] ** self.args.gamma
-                        # _loss_tmp = F.binary_cross_entropy(feat_outs[v], labels, weight=_weight_var)
-                        _loss_tmp = F.binary_cross_entropy(feat_outs[v], labels_lp, reduction='none')
-                        _loss_tmp = _weight_var * _loss_tmp
-                        _loss_tmp = _loss_tmp.mean(dim=0)
-                        _cls_loss.append(_loss_tmp)
-                        weight_up_temp = _loss_tmp ** (1 / (1 - self.args.gamma))
-                        weight_up_list.append(weight_up_temp)
+                    ml_loss = F.binary_cross_entropy(feat_outs, labels)
 
-                    nll_loss_x = torch.stack(_cls_loss).mean(dim=1).sum()
-                    nll_loss_y = F.binary_cross_entropy(label_out, labels_lp)
-                    ml_loss = 0.5 * (nll_loss_x + nll_loss_y)
-                    # ml_loss = F.binary_cross_entropy(outputs, labels_lp)
-                    weight_up_var = torch.stack(weight_up_list).detach()
-                    weight_down_var = weight_up_var.sum(dim=0)
-                    weight_var = torch.div(weight_up_var, weight_down_var)
-
-                elif self.args.using_weight:
-                    for v in range(len(feat_outs)):
-                        # 采用多标签设置
-                        _weight_var = weight_var[v] ** self.args.gamma
-                        # _loss_tmp = F.binary_cross_entropy(feat_outs[v], labels, weight=_weight_var)
-                        _loss_tmp = F.binary_cross_entropy(feat_outs[v], labels, reduction='none')
-                        _loss_tmp = _weight_var * _loss_tmp
-                        _loss_tmp = _loss_tmp.mean(dim=0)
-                        _cls_loss.append(_loss_tmp)
-                        weight_up_temp = _loss_tmp ** (1 / (1 - self.args.gamma))
-                        weight_up_list.append(weight_up_temp)
-
-                    nll_loss_x = torch.stack(_cls_loss).mean(dim=1).sum()
-                    nll_loss_y = F.binary_cross_entropy(label_out, labels)
-                    ml_loss = 0.5 * (nll_loss_x + nll_loss_y)
-                    # ml_loss = F.binary_cross_entropy(outputs, labels)
-
-                    weight_up_var = torch.stack(weight_up_list).detach()
-                    weight_down_var = weight_up_var.sum(dim=0)
-                    weight_var = torch.div(weight_up_var, weight_down_var)
                 else:
-                    for v in range(len(feat_outs)):
-                        _loss_tmp = F.binary_cross_entropy(feat_outs[v], labels)
-                        _cls_loss.append(_loss_tmp)
+                    ml_loss = F.binary_cross_entropy(feat_outs, labels)
 
-                    nll_loss_x = torch.stack(_cls_loss).sum()
-                    nll_loss_y = F.binary_cross_entropy(label_out, labels)
-                    ml_loss = 0.5 * (nll_loss_x + nll_loss_y)
-
-                # nll_loss_x = torch.stack(_cls_loss).mean(dim=1).sum()
+                # nll_loss_x = torch.stack(_cls_loss).sum()
                 # nll_loss_y = F.binary_cross_entropy(label_out, labels)
-                # ml_loss = 0.5*(nll_loss_x + nll_loss_y)
-
-                # for v in range(len(cls)):
-                #     _cls_loss.append(F.binary_cross_entropy(cls[v], labels))
-                # cls_loss = sum(_cls_loss)
-
+                # ml_loss = 0.5 * (nll_loss_x + nll_loss_y)
                 # loss = self.args.coef_cl * cl_loss + self.args.coef_ml * ml_loss
                 loss = self.args.coef_ml * ml_loss
 
-                # reconstruction loss
-                # for v in range(len(xrs)):
-                #     loss_list.append(criterion(inputs[v], xrs[v]))
-                # loss = sum(loss_list)
+                print_str = f'Epoch: {epoch}\t Loss: {loss.item():.4f}'
 
-                print_str = f'Epoch: {epoch}\t Loss: {loss.item():.4f}\t CL Loss: {self.args.coef_cl*cl_loss:.4f}' \
-                            f'\tML Loss: {self.args.coef_ml*ml_loss:.4f}'
+                # print_str = f'Epoch: {epoch}\t Loss: {loss.item():.4f}\t CL Loss: {self.args.coef_cl*cl_loss:.4f}' \
+                #             f'\tML Loss: {self.args.coef_ml*ml_loss:.4f}'
 
                 # show loss info
                 if epoch % self.show_epoch == 0 and step == 0:
                     print(print_str)
                     epoch_loss = dict()
-                    # writer.add_scalar("Loss/train", loss, epoch)  # log
-                    # plotter.plot('loss', 'train', 'Class Loss', epoch, _ML_loss)
                     loss_list.append(epoch_loss)
 
                 self.opti.zero_grad()
@@ -228,11 +140,11 @@ class Trainer(object):
 
                 # test
                 if self.args.using_lp:
-                    _, train_pred_np = test(self.model, train_features, train_partial_labels, weight_var, self.device, is_eval=False, args=self.args)
+                    _, train_pred_np = test(self.model, train_features, train_partial_labels, self.device, is_eval=False, args=self.args)
 
                 # evaluation
                 if epoch % self.show_epoch == 0 and step == 0 and self.args.is_test_in_train:
-                    metrics_results, _ = test(self.model, test_features, test_labels, weight_var, self.device, is_eval=True, args=self.args)
+                    metrics_results, _ = test(self.model, test_features, test_labels, self.device, is_eval=True, args=self.args)
 
                     # draw figure to find best epoch number
                     for i, key in enumerate(metrics_results):
@@ -243,9 +155,9 @@ class Trainer(object):
                     if best_F1 < metrics_results['micro_f1']:
                         best_F1, best_epoch = metrics_results['micro_f1'], epoch
 
-          print(f"best_F1: {best_F1}, epoch {best_epoch}")
+        print(f"best_F1: {best_F1}, epoch {best_epoch}")
 
-        return loss_list, weight_var
+        return loss_list
 
 
 if __name__ == '__main__':

@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 # from torch.utils.tensorboard import SummaryWriter
 
 from config import *
-from model import Network
+from models.Networks import Network
 from train import test, Trainer
 from utils.common_tools import split_data_set_by_idx, ViewsDataset, load_mat_data, init_random_seed
 
@@ -61,11 +61,6 @@ def run(device, args, save_dir, file_name):
         num_view = len(view_code_list)
         class_num = train_labels.shape[1]
         input_size = view_feature_dim_list
-        # 设置 latent_dim 为标签数
-        # args.latent_dim = class_num
-
-        # load model
-        # model = Network(view_num, input_size, features_dim, high_feature_dim, class_num, device).to(device)
 
         model = Network(num_view, input_size, args.latent_dim, args.high_feature_dim,
                  args.embedding_dim, class_num, device).to(device)
@@ -74,12 +69,12 @@ def run(device, args, save_dir, file_name):
 
         # training
         trainer = Trainer(model, args, device)
-        loss_list, weight_var = trainer.fit(views_data_loader, train_features, train_partial_labels, test_features, test_labels,
+        loss_list = trainer.fit(views_data_loader, train_features, train_partial_labels, test_features, test_labels,
                                 class_num, fold)
 
         fold_list.append(loss_list)
 
-        metrics_results, _ = test(model, test_features, test_labels, weight_var, device, is_eval=True, args=args)
+        metrics_results, _ = test(model, test_features, test_labels, device, is_eval=True, args=args)
 
         for i, key in enumerate(metrics_results):
             rets[fold][i] = metrics_results[key]
@@ -139,9 +134,9 @@ if __name__ == '__main__':
     # datanames = ['Emotions']
     # datanames = ['Scene']
     # datanames = ['Yeast']
-    # datanames = ['Pascal']
+    datanames = ['Pascal']
     # datanames = ['Iaprtc12']
-    datanames = ['Corel5k']
+    # datanames = ['Corel5k']
     # datanames = ['Mirflickr']
     # datanames = ['Espgame']
 
@@ -150,10 +145,6 @@ if __name__ == '__main__':
     #     'high_feature_dim': [256],
     #     'embedding_dim': [256],
     # }
-
-    MAX_EVALS = 1
-    best_score = 0
-    best_hyperparams = {}
     
     for i, dataname in enumerate(datanames):
         for p in noise_rates:
