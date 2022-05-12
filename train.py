@@ -3,12 +3,15 @@ import os
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
-# from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 # from model import estimating_label_correlation_matrix, build_graph, label_propagation
 from models.Disambiguation import estimating_label_correlation_matrix, build_graph, label_propagation
+from utils.loss import Loss, cross_modal_contrastive_ctriterion
 from utils.ml_metrics import all_metrics
 
+
+writer = SummaryWriter(log_dir="runs/")
 
 @ torch.no_grad()
 def test(model, features, labels, device, model_state_path=None, is_eval=False, args=None):
@@ -26,7 +29,7 @@ def test(model, features, labels, device, model_state_path=None, is_eval=False, 
 
     # prediction
     with torch.no_grad():
-        outputs = model(features, labels)
+        outputs, _, _ = model(features, labels)
 
     outputs = outputs.cpu().numpy()
     preds = (outputs > 0.5).astype(int)
@@ -68,6 +71,9 @@ class Trainer(object):
         train_partial_labels_np, train_pred_np, train_lp_np, labels_lp = [], [], [], []
         Wn, L = [], []
 
+        criterion = Loss(self.args.batch_size, class_num, self.args.temperature_f, self.args.temperature_l,
+                         self.args, self.device).to(self.device)
+
         if not os.path.exists(self.model_save_dir):
             os.makedirs(self.model_save_dir)
 
@@ -102,31 +108,34 @@ class Trainer(object):
                     inputs[i] = inputs[i].to(self.device)
                 labels = labels.to(self.device)
 
-                feat_outs = self.model(inputs, labels)
+                feat_out, feat_embs, hs = self.model(inputs, labels)
 
                 # contrastive loss
+                # cl_loss_list = []
                 # for v in range(self.model.view):
                 #     for w in range(v + 1, self.model.view):
-                #         _cl_loss.append(criterion.info_nce_loss(hs[v], hs[w]))
-                # cl_loss = sum(_cl_loss)
+                #         cl_loss_list.append(criterion.info_nce_loss(hs[v], hs[w]))
+                # cl_loss = sum(cl_loss_list) / len(cl_loss_list)
+
+                cl_loss = cross_modal_contrastive_ctriterion(hs, n_view=self.model.view, tau=self.args.tau)
 
                 # classification loss
                 if self.args.using_lp:
-                    ml_loss = F.binary_cross_entropy(feat_outs, labels)
-
+                    ml_loss = F.binary_cross_entropy(feat_out, labels_lp)
                 else:
-                    ml_loss = F.binary_cross_entropy(feat_outs, labels)
+                    ml_loss = F.binary_cross_entropy(feat_out, labels)
 
                 # nll_loss_x = torch.stack(_cls_loss).sum()
                 # nll_loss_y = F.binary_cross_entropy(label_out, labels)
                 # ml_loss = 0.5 * (nll_loss_x + nll_loss_y)
-                # loss = self.args.coef_cl * cl_loss + self.args.coef_ml * ml_loss
-                loss = self.args.coef_ml * ml_loss
 
-                print_str = f'Epoch: {epoch}\t Loss: {loss.item():.4f}'
+                # loss = self.args.coef_ml * ml_loss
 
-                # print_str = f'Epoch: {epoch}\t Loss: {loss.item():.4f}\t CL Loss: {self.args.coef_cl*cl_loss:.4f}' \
-                #             f'\tML Loss: {self.args.coef_ml*ml_loss:.4f}'
+                loss = self.args.coef_cl * cl_loss + self.args.coef_ml * ml_loss
+                # print_str = f'Epoch: {epoch}\t Loss: {loss.item():.4f}'
+
+                print_str = f'Epoch: {epoch}\t Loss: {loss.item():.4f}\t CL Loss: {self.args.coef_cl*cl_loss:.4f}' \
+                            f'\tML Loss: {self.args.coef_ml*ml_loss:.4f}'
 
                 # show loss info
                 if epoch % self.show_epoch == 0 and step == 0:
@@ -137,6 +146,16 @@ class Trainer(object):
                 self.opti.zero_grad()
                 loss.backward()
                 self.opti.step()
+
+                # add model weight
+
+                writer.add_histogram(tag="encoder0",
+                                        values=self.model.encoders[0].encoder[0].weight,
+                                        global_step=epoch)
+
+                writer.add_histogram(tag="classifier",
+                                        values=self.model.classifier[0].weight,
+                                        global_step=epoch)
 
                 # test
                 if self.args.using_lp:

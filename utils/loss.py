@@ -172,3 +172,19 @@ def log_sum_exp(x, mask):
     new_x = x - max_x.unsqueeze(1).expand_as(x)
     return max_x + (new_x.exp().sum(1) + 1e-6).log()
 
+
+def cross_modal_contrastive_ctriterion(fea, n_view, tau=1.):
+    batch_size = fea[0].shape[0]
+    all_fea = torch.cat(fea)
+    sim = all_fea.mm(all_fea.t())
+
+    sim = (sim / tau).exp()
+    sim = sim - sim.diag().diag()
+    sim_sum1 = sum([sim[:, v * batch_size: (v + 1) * batch_size] for v in range(n_view)])
+    diag1 = torch.cat([sim_sum1[v * batch_size: (v + 1) * batch_size].diag() for v in range(n_view)])
+    loss1 = -(diag1 / sim.sum(1)).log().mean()
+
+    sim_sum2 = sum([sim[v * batch_size: (v + 1) * batch_size] for v in range(n_view)])
+    diag2 = torch.cat([sim_sum2[:, v * batch_size: (v + 1) * batch_size].diag() for v in range(n_view)])
+    loss2 = -(diag2 / sim.sum(1)).log().mean()
+    return loss1 + loss2

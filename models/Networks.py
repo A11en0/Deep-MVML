@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from torch.nn.functional import normalize
 
 
 class Encoder(nn.Module):
@@ -7,7 +8,7 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
         self.encoder = nn.Sequential(
             nn.Linear(input_dim, feature_dim),
-            # nn.ReLU(),
+            nn.ReLU(),
             # nn.Linear(256, feature_dim),
             # nn.ReLU(),
             # nn.Linear(512, feature_dim),
@@ -37,7 +38,7 @@ class Decoder(nn.Module):
         return self.decoder(x)
 
 class Network(nn.Module):
-    def __init__(self, num_view, input_size, latent_dim, high_feature_dim,
+    def __init__(self, num_view, input_size, high_feature_dim,
                  embedding_dim, class_num, device):
         super(Network, self).__init__()
         self.encoders = []
@@ -47,10 +48,17 @@ class Network(nn.Module):
 
         self.encoders = nn.ModuleList(self.encoders)
 
-        # self.classifier = nn.Linear(num_view * embedding_dim, class_num)
+        self.ln = nn.Sequential(
+            nn.Linear(embedding_dim, 256),
+            # nn.BatchNorm1d(256),
+            nn.ReLU(inplace=True),
+            nn.Linear(256, embedding_dim),
+            # nn.BatchNorm1d(embedding_dim),
+            nn.ReLU(inplace=True),
+        )
 
         self.classifier = nn.Sequential(
-            nn.Linear(num_view * embedding_dim + embedding_dim, class_num),
+            nn.Linear(num_view * embedding_dim, class_num),
             # nn.Linear(embedding_dim, class_num),
             # nn.BatchNorm1d(128),
             # nn.ReLU(inplace=True),
@@ -64,24 +72,28 @@ class Network(nn.Module):
             nn.Linear(embedding_dim, embedding_dim)
         )
 
+        self.feature_contrastive_module = nn.Sequential(
+            nn.Linear(embedding_dim, high_feature_dim),
+        )
+
         self.view = num_view
 
     def forward(self, xs, labels):
         feat_embs = []
-        view_comm_feats = []
+        hs = []
 
         for v in range(self.view):
             view_feat = self.encoders[v](xs[v])
-            view_comm_feats.append(self.fc_comm_extract(view_feat))
+            # X = self.ln(view_feat)
+            # view_feat = view_feat + X
+            hs.append(normalize(self.feature_contrastive_module(view_feat), dim=1))
+            # view_feat = normalize(view_feat, dim=1)
             feat_embs.append(view_feat)
 
-        comm_embs = torch.stack(view_comm_feats).mean(dim=0)
-        feat_embs = torch.cat(feat_embs, dim=1)
-        feat_embs = torch.cat([feat_embs, comm_embs], dim=1)
+        feat_emb_concat = torch.cat(feat_embs, dim=1)
+        feat_out = self.classifier(feat_emb_concat)
 
-        feat_outs = self.classifier(feat_embs)
-
-        return feat_outs
+        return feat_out, feat_embs, hs
 
 
 if __name__ == '__main__':

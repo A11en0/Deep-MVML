@@ -1,6 +1,7 @@
 # -*- coding: UTF-8 -*-
 import os
 import random
+import torch.nn as nn
 
 from scipy.io import loadmat
 import numpy as np
@@ -9,7 +10,7 @@ from torch.utils.data import Dataset
 import torch
 import h5py
 
-from utils.random_noise import random_noise, random_noise_p_r
+from utils.random_noise import random_noise_p_r
 
 
 def gen_idx_list(length):
@@ -45,6 +46,7 @@ def load_mat_data(file_name, need_zscore=False):
         dataset = h5py.File(file_name)
         data_hdf5 = dataset['data']
         target_hdf5 = dataset['target']
+        target_hdf5 = target_hdf5[:, :]
         idx_list = gen_idx_list(target_hdf5.shape[1])
         target = np.transpose(target_hdf5)
         target = np.array(target, dtype=np.float32)
@@ -53,6 +55,7 @@ def load_mat_data(file_name, need_zscore=False):
         i = 0
         for view_feature in data_hdf5[0]:
             view_feature = dataset[view_feature]
+            view_feature = view_feature[:, :]
             view_feature = np.transpose(view_feature)
             view_feature = np.array(view_feature, dtype=np.float32)
             if need_zscore:
@@ -154,4 +157,18 @@ def init_random_seed(seed):
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
-
+# 权重初始化，默认xavier
+def init_network(model, method='xavier', exclude='embedding', seed=123):
+    for name, w in model.named_parameters():
+        if exclude not in name:
+            if 'weight' in name:
+                if method == 'xavier':
+                    nn.init.xavier_normal_(w)
+                elif method == 'kaiming':
+                    nn.init.kaiming_normal_(w)
+                else:
+                    nn.init.normal_(w)
+            elif 'bias' in name:
+                nn.init.constant_(w, 0)
+            else:
+                pass
