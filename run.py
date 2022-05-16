@@ -9,7 +9,8 @@ from train import test, Trainer
 from utils.common_tools import split_data_set_by_idx, ViewsDataset, load_mat_data, init_random_seed, init_network
 from torch.utils.tensorboard import SummaryWriter
 
-writer = SummaryWriter(log_dir="runs/")
+# writer = SummaryWriter(log_dir="runs/")
+
 
 def run(device, args, save_dir, file_name):
     print('*' * 30)
@@ -31,14 +32,16 @@ def run(device, args, save_dir, file_name):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    if os.path.exists(save_name):
-        return
+    # if os.path.exists(save_name):
+    #     return
 
     features, labels, idx_list = load_mat_data(os.path.join(args.DATA_ROOT, args.DATA_SET_NAME + '.mat'), True)
 
     fold_list, metrics_results = [], []
     rets = np.zeros((Fold_numbers, 11))  # 11 metrics
     for fold in range(Fold_numbers):
+
+        writer = SummaryWriter(log_dir=f"runs/{file_name}/{fold}")
 
         TEST_SPLIT_INDEX = fold
         print('-' * 50 + '\n' + 'Fold: %s' % fold)
@@ -59,24 +62,23 @@ def run(device, args, save_dir, file_name):
         class_num = train_labels.shape[1]
         input_size = view_feature_dim_list
 
-        model = Network(num_view, input_size, args.high_feature_dim,
-                 args.embedding_dim, class_num, device).to(device)
-        init_network(model)
+        model = Network(num_view, input_size, args.high_feature_dim, args.embedding_dim, args.cluster_dim, class_num,
+                        device).to(device)
+        # init_network(model)
         # print(model)
 
         init_graph = {}
         for i in range(len(view_code_list)):
-            init_graph[i] = torch.zeros(512, view_feature_dim_list[i]).to(device)
+            init_graph[i] = torch.zeros(args.batch_size, view_feature_dim_list[i]).to(device)
 
-        init_labels = torch.zeros(512, 10)
-
-        writer.add_graph(model, [init_graph, init_labels])
+        # init_labels = torch.zeros(args.batch_size, class_num)
+        # writer.add_graph(model, [init_graph, init_labels])
 
         # Parallel
         # model = torch.nn.DataParallel(model)
 
         # training
-        trainer = Trainer(model, args, device)
+        trainer = Trainer(model, writer, args, device)
         loss_list = trainer.fit(views_data_loader, train_features, train_partial_labels, test_features, test_labels,
                                 class_num, fold)
 
@@ -127,19 +129,19 @@ if __name__ == '__main__':
     lrs = [1e-3]
 
     # noise_rates = [0.3, 0.5, 0.7]
-    noise_rates = [0.0]
+    noise_rates = [0.7]
 
     # datanames = ['Emotions', 'Scene', 'Yeast', 'Pascal', 'Iaprtc12', 'Corel5k', 'Mirflickr', 'Espgame']
     # label_nums = [6, 6, 14, 20, 291, 260, 38, 268]
 
-    datanames = ['Emotions', 'Yeast', 'Scene', 'Pascal', 'Mirflickr']
+    # datanames = ['Emotions', 'Yeast', 'Scene', 'Pascal', 'Mirflickr']
     # label_nums = [6]
 
     # datanames = ['Iaprtc12', 'Corel5k', 'Espgame']
     # datanames = ['Emotions']
     # label_nums = [300]
 
-    # datanames = ['Emotions']
+    datanames = ['Emotions']
     # datanames = ['Scene']
     # datanames = ['Yeast']
     # datanames = ['Pascal']
@@ -147,7 +149,6 @@ if __name__ == '__main__':
     # datanames = ['Corel5k']
     # datanames = ['Mirflickr']
     # datanames = ['Espgame']
-    # datanames = ['Corel5k']
 
     param_grid = {
         # 'latent_dim': [64, 128, 256, 512],
@@ -155,34 +156,36 @@ if __name__ == '__main__':
         'embedding_dim': [64, 128, 256, 512],
     }
 
-    etas = [0.1, 1e-2, 1e-3, 1e-4]
-    zetas = [0.1, 1e-2, 1e-3]
-    alphas = [0.1, 1, 10]
+    # etas = [0.1, 1e-2, 1e-3, 1e-4]
+    # zetas = [0.1, 1e-2, 1e-3]
+    # alphas = [0.1, 1, 10]
 
     for i, dataname in enumerate(datanames):
         for p in noise_rates:
             for lr in lrs:
+
                 # for eta in etas:
                 #     for zeta in zetas:
                 #         for alpha in alphas:
-                # for coef_cl in np.arange(0, 1, 0.1):
-                # for emb in param_grid['embedding_dim']:
-                #     for hi in param_grid['high_feature_dim']:
+                # for coef_kl in np.arange(0, 1, 0.1):
+                #     for coef_cl in np.arange(0, 1, 0.1):
 
-                           args.DATA_SET_NAME = dataname
-                           args.noise_rate = p
-                           args.lr = lr
-                           # args.eta = eta
-                           # args.zeta = zeta
-                           # args.alpha = alpha
+                        # for coef_cl in np.arange(0, 1, 0.1):
+                        # for emb in param_grid['embedding_dim']:
+                        #     for hi in param_grid['high_feature_dim']:
 
-                           save_dir = f'results/{args.DATA_SET_NAME}/'
-                           save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-epochs{args.epochs}-p{args.noise_rate}-' \
-                                        f'hdim{args.high_feature_dim}-emd{args.embedding_dim}-' \
-                                        f'eta{args.eta}-zeta{args.zeta}-alpha{args.alpha}-mu{args.mu}-' \
-                                        f'coef_ml-{args.coef_ml}-coef_cl{args.coef_cl}.txt'
+                        args.DATA_SET_NAME = dataname
+                        args.noise_rate = p
+                        args.lr = lr
+                        # args.coef_kl = coef_kl
+                        # args.coef_cl = coef_cl
 
-                           run(device, args, save_dir, save_name)
+                        save_dir = f'results/{args.DATA_SET_NAME}/'
+                        save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-epochs{args.epochs}-p{args.noise_rate}-' \
+                                    f'hdim{args.high_feature_dim}-emd{args.embedding_dim}-clu{args.cluster_dim}-' \
+                                    f'coef_ml-{args.coef_ml}-coef_cl{args.coef_cl}.txt-coef_kl{args.coef_kl}.txt'
+
+                        run(device, args, save_dir, save_name)
 
                         # args.embedding_dim = emb
                         # args.high_feature_dim = hi

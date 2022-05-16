@@ -41,9 +41,11 @@ class Args:
         # self.latent_dim = 256  # 512 related-to label dim
         self.high_feature_dim = 256  # 256
         self.embedding_dim = 256  # 256
+        self.cluster_dim = 256  # 256
 
         self.coef_ml = 1.0
-        self.coef_cl = 0.1
+        self.coef_cl = 0.0
+        self.coef_kl = 0.5
         self.tau = 1.0
 
         # self.using_weight = False

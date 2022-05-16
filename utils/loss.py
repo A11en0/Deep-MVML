@@ -180,6 +180,8 @@ def cross_modal_contrastive_ctriterion(fea, n_view, tau=1.):
 
     sim = (sim / tau).exp()
     sim = sim - sim.diag().diag()
+    tmp = sim[:, 0: batch_size]
+
     sim_sum1 = sum([sim[:, v * batch_size: (v + 1) * batch_size] for v in range(n_view)])
     diag1 = torch.cat([sim_sum1[v * batch_size: (v + 1) * batch_size].diag() for v in range(n_view)])
     loss1 = -(diag1 / sim.sum(1)).log().mean()

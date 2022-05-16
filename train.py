@@ -1,8 +1,10 @@
 # -*- coding: UTF-8 -*-
 import os
 import torch
+from torch import nn
 import torch.optim as optim
 import torch.nn.functional as F
+from sklearn.cluster import KMeans
 from torch.utils.tensorboard import SummaryWriter
 
 # from model import estimating_label_correlation_matrix, build_graph, label_propagation
@@ -11,7 +13,6 @@ from utils.loss import Loss, cross_modal_contrastive_ctriterion
 from utils.ml_metrics import all_metrics
 
 
-writer = SummaryWriter(log_dir="runs/")
 
 @ torch.no_grad()
 def test(model, features, labels, device, model_state_path=None, is_eval=False, args=None):
@@ -29,7 +30,8 @@ def test(model, features, labels, device, model_state_path=None, is_eval=False, 
 
     # prediction
     with torch.no_grad():
-        outputs, _, _ = model(features, labels)
+        outputs, _, _, _ = model(features, labels)
+        outputs = outputs.sigmoid()
 
     outputs = outputs.cpu().numpy()
     preds = (outputs > 0.5).astype(int)
@@ -42,12 +44,13 @@ def test(model, features, labels, device, model_state_path=None, is_eval=False, 
     return metrics_results, preds
 
 class Trainer(object):
-    def __init__(self, model, args, device):
+    def __init__(self, model, writer, args, device):
         self.model = model
         self.epochs = args.epochs
         self.show_epoch = args.show_epoch
         self.model_save_epoch = args.model_save_epoch
         self.model_save_dir = args.model_save_dir
+        self.writer = writer
         self.device = device
         self.args = args
 
@@ -71,8 +74,12 @@ class Trainer(object):
         train_partial_labels_np, train_pred_np, train_lp_np, labels_lp = [], [], [], []
         Wn, L = [], []
 
-        criterion = Loss(self.args.batch_size, class_num, self.args.temperature_f, self.args.temperature_l,
+        CL = Loss(self.args.batch_size, class_num, self.args.temperature_f, self.args.temperature_l,
                          self.args, self.device).to(self.device)
+
+        kl_div = nn.KLDivLoss(size_average=False)
+
+        kmeans = KMeans(n_clusters=class_num, n_init=20)
 
         if not os.path.exists(self.model_save_dir):
             os.makedirs(self.model_save_dir)
@@ -108,16 +115,25 @@ class Trainer(object):
                     inputs[i] = inputs[i].to(self.device)
                 labels = labels.to(self.device)
 
-                feat_out, feat_embs, hs = self.model(inputs, labels)
+                feat_out, feat_embs, cluster_out, hs = self.model(inputs, labels)
+
+                # kl_loss = F.cross_entropy(cluster_out, labels)
+
+                kl_loss = kl_div(cluster_out.log(), labels) / cluster_out.shape[0]
+
+                # actual = torch.cat(actual).long()
+                # predicted = kmeans.fit_predict(torch.cat(features).numpy())
 
                 # contrastive loss
-                # cl_loss_list = []
-                # for v in range(self.model.view):
-                #     for w in range(v + 1, self.model.view):
-                #         cl_loss_list.append(criterion.info_nce_loss(hs[v], hs[w]))
-                # cl_loss = sum(cl_loss_list) / len(cl_loss_list)
+                cl_loss_list = []
+                for v in range(self.model.view):
+                    for w in range(v + 1, self.model.view):
+                        cl_loss_list.append(CL.info_nce_loss(hs[v], hs[w]))
+                cl_loss = sum(cl_loss_list) / len(cl_loss_list)
 
-                cl_loss = cross_modal_contrastive_ctriterion(hs, n_view=self.model.view, tau=self.args.tau)
+                # cl_loss = cross_modal_contrastive_ctriterion(feat_embs, n_view=self.model.view, tau=self.args.tau)
+
+                feat_out = feat_out.sigmoid()
 
                 # classification loss
                 if self.args.using_lp:
@@ -129,17 +145,24 @@ class Trainer(object):
                 # nll_loss_y = F.binary_cross_entropy(label_out, labels)
                 # ml_loss = 0.5 * (nll_loss_x + nll_loss_y)
 
-                # loss = self.args.coef_ml * ml_loss
+                ml_loss = self.args.coef_ml * ml_loss
+                cl_loss = self.args.coef_cl * cl_loss
+                kl_loss = self.args.coef_kl * kl_loss
+                loss = ml_loss + cl_loss + kl_loss
 
-                loss = self.args.coef_cl * cl_loss + self.args.coef_ml * ml_loss
-                # print_str = f'Epoch: {epoch}\t Loss: {loss.item():.4f}'
-
-                print_str = f'Epoch: {epoch}\t Loss: {loss.item():.4f}\t CL Loss: {self.args.coef_cl*cl_loss:.4f}' \
-                            f'\tML Loss: {self.args.coef_ml*ml_loss:.4f}'
+                print_str = f'Epoch: {epoch}\t Loss: {loss.item():.4f}' \
+                            f'\t CL Loss: {cl_loss:.4f}' \
+                            f'\t KL Loss: {kl_loss:.4f}'  \
+                            f'\t ML Loss: {ml_loss:.4f}'
 
                 # show loss info
                 if epoch % self.show_epoch == 0 and step == 0:
                     print(print_str)
+                    self.writer.add_scalar("Loss/Loss", loss.item(), global_step=epoch)
+                    self.writer.add_scalar("Loss/ML Loss", ml_loss.item(), global_step=epoch)
+                    self.writer.add_scalar("Loss/CL Loss", cl_loss.item(), global_step=epoch)
+                    self.writer.add_scalar("Loss/KL Loss", kl_loss.item(), global_step=epoch)
+
                     epoch_loss = dict()
                     loss_list.append(epoch_loss)
 
@@ -147,15 +170,10 @@ class Trainer(object):
                 loss.backward()
                 self.opti.step()
 
-                # add model weight
-
-                writer.add_histogram(tag="encoder0",
-                                        values=self.model.encoders[0].encoder[0].weight,
-                                        global_step=epoch)
-
-                writer.add_histogram(tag="classifier",
-                                        values=self.model.classifier[0].weight,
-                                        global_step=epoch)
+                # 每一个epoch，记录各层权重、梯度
+                for name, param in self.model.named_parameters():  # 返回网络的
+                    self.writer.add_histogram(name + '_grad', param.grad, epoch)
+                    self.writer.add_histogram(name + '_data', param, epoch)
 
                 # test
                 if self.args.using_lp:
@@ -168,6 +186,8 @@ class Trainer(object):
                     # draw figure to find best epoch number
                     for i, key in enumerate(metrics_results):
                         print(f"{key}: {metrics_results[key]:.4f}", end='\t')
+                        self.writer.add_scalar(f"Metrics/{key}", metrics_results[key], global_step=epoch)
+
                         loss_list[epoch][key] = metrics_results[key]
                     print("\n")
 
@@ -175,7 +195,7 @@ class Trainer(object):
                         best_F1, best_epoch = metrics_results['micro_f1'], epoch
 
         print(f"best_F1: {best_F1}, epoch {best_epoch}")
-
+        self.writer.close()
         return loss_list
 
 
