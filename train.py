@@ -1,7 +1,6 @@
 # -*- coding: UTF-8 -*-
 import os
 import torch
-from torch import nn
 import torch.optim as optim
 import torch.nn.functional as F
 from sklearn.cluster import KMeans
@@ -9,9 +8,9 @@ from torch.utils.tensorboard import SummaryWriter
 
 # from model import estimating_label_correlation_matrix, build_graph, label_propagation
 from models.Disambiguation import estimating_label_correlation_matrix, build_graph, label_propagation
+from utils.draw import plot_embedding
 from utils.loss import Loss, cross_modal_contrastive_ctriterion
 from utils.ml_metrics import all_metrics
-
 
 
 @ torch.no_grad()
@@ -43,10 +42,12 @@ def test(model, features, labels, device, model_state_path=None, is_eval=False, 
 
     return metrics_results, preds
 
+
 class Trainer(object):
     def __init__(self, model, writer, args, device):
         self.model = model
         self.epochs = args.epochs
+        self.pretrain_epochs = args.pretrain_epochs
         self.show_epoch = args.show_epoch
         self.model_save_epoch = args.model_save_epoch
         self.model_save_dir = args.model_save_dir
@@ -74,12 +75,10 @@ class Trainer(object):
         train_partial_labels_np, train_pred_np, train_lp_np, labels_lp = [], [], [], []
         Wn, L = [], []
 
-        CL = Loss(self.args.batch_size, class_num, self.args.temperature_f, self.args.temperature_l,
-                         self.args, self.device).to(self.device)
-
-        kl_div = nn.KLDivLoss(size_average=False)
-
-        kmeans = KMeans(n_clusters=class_num, n_init=20)
+        # CL = Loss(self.args.batch_size, class_num, self.args.temperature_f, self.args.temperature_l,
+        #                  self.args, self.device).to(self.device)
+        # kl_div = nn.KLDivLoss(size_average=False)
+        # kmeans = KMeans(n_clusters=class_num, n_init=20)
 
         if not os.path.exists(self.model_save_dir):
             os.makedirs(self.model_save_dir)
@@ -115,65 +114,59 @@ class Trainer(object):
                     inputs[i] = inputs[i].to(self.device)
                 labels = labels.to(self.device)
 
-                feat_out, feat_embs, cluster_out, hs = self.model(inputs, labels)
-
-                # kl_loss = F.cross_entropy(cluster_out, labels)
-
-                kl_loss = kl_div(cluster_out.log(), labels) / cluster_out.shape[0]
-
-                # actual = torch.cat(actual).long()
-                # predicted = kmeans.fit_predict(torch.cat(features).numpy())
+                outputs, hs, xrs, zs = self.model(inputs, labels)
 
                 # contrastive loss
-                cl_loss_list = []
-                for v in range(self.model.view):
-                    for w in range(v + 1, self.model.view):
-                        cl_loss_list.append(CL.info_nce_loss(hs[v], hs[w]))
-                cl_loss = sum(cl_loss_list) / len(cl_loss_list)
-
-                # cl_loss = cross_modal_contrastive_ctriterion(feat_embs, n_view=self.model.view, tau=self.args.tau)
-
-                feat_out = feat_out.sigmoid()
+                # cl_loss_list = []
+                # for v in range(self.model.view):
+                #     for w in range(v + 1, self.model.view):
+                #         cl_loss_list.append(CL.info_nce_loss(hs[v], hs[w]))
+                # cl_loss = sum(cl_loss_list) / len(cl_loss_list)
 
                 # classification loss
                 if self.args.using_lp:
-                    ml_loss = F.binary_cross_entropy(feat_out, labels_lp)
+                    ml_loss = F.binary_cross_entropy_with_logits(outputs, labels_lp)
                 else:
-                    ml_loss = F.binary_cross_entropy(feat_out, labels)
+                    ml_loss = F.binary_cross_entropy_with_logits(outputs, labels)
 
-                # nll_loss_x = torch.stack(_cls_loss).sum()
-                # nll_loss_y = F.binary_cross_entropy(label_out, labels)
-                # ml_loss = 0.5 * (nll_loss_x + nll_loss_y)
+                loss = self.args.coef_ml * ml_loss
 
-                ml_loss = self.args.coef_ml * ml_loss
-                cl_loss = self.args.coef_cl * cl_loss
-                kl_loss = self.args.coef_kl * kl_loss
-                loss = ml_loss + cl_loss + kl_loss
+                # loss = ml_loss
+                # cl_loss = self.args.coef_cl * cl_loss
+                # loss = ml_loss + cl_loss
+                # info_loss = self.args.coef_mi * info_loss
 
-                print_str = f'Epoch: {epoch}\t Loss: {loss.item():.4f}' \
-                            f'\t CL Loss: {cl_loss:.4f}' \
-                            f'\t KL Loss: {kl_loss:.4f}'  \
-                            f'\t ML Loss: {ml_loss:.4f}'
+                print_str = f'Epoch: {epoch}\t Loss: {loss.item():.4f}'
+                    # f'\t ML Loss: {ml_loss:.4f}' \
+                            # f'\t CL Loss: {cl_loss:.4f}' \
 
                 # show loss info
                 if epoch % self.show_epoch == 0 and step == 0:
                     print(print_str)
                     self.writer.add_scalar("Loss/Loss", loss.item(), global_step=epoch)
-                    self.writer.add_scalar("Loss/ML Loss", ml_loss.item(), global_step=epoch)
-                    self.writer.add_scalar("Loss/CL Loss", cl_loss.item(), global_step=epoch)
-                    self.writer.add_scalar("Loss/KL Loss", kl_loss.item(), global_step=epoch)
-
+                    # self.writer.add_scalar("Loss/ML Loss", ml_loss.item(), global_step=epoch)
+                    # self.writer.add_scalar("Loss/CL Loss", cl_loss.item(), global_step=epoch)
+                    # self.writer.add_scalar("Loss/MI Loss", info_loss.item(), global_step=epoch)
+                    # self.writer.add_embedding(mat=hs[1], metadata=labels, global_step=epoch)
+                    # plot_embedding(hs[0], hs[1], labels)
                     epoch_loss = dict()
                     loss_list.append(epoch_loss)
+                    # self.writer.add_embedding(mat=hs[0], metadata=labels, global_step=epoch)
+                    # self.writer.add_embedding(mat=hs[1], metadata=labels, global_step=epoch)
+
+                # if epoch % 100 == 0 and step == 0:
+                #     plot_embedding(hs[0], hs[1], labels)
+                    # self.writer.add_embedding(mat=hs[0], metadata=labels, global_step=epoch)
+                    # self.writer.add_embedding(mat=hs[1], metadata=labels, global_step=epoch)
 
                 self.opti.zero_grad()
                 loss.backward()
                 self.opti.step()
 
                 # 每一个epoch，记录各层权重、梯度
-                for name, param in self.model.named_parameters():  # 返回网络的
-                    self.writer.add_histogram(name + '_grad', param.grad, epoch)
-                    self.writer.add_histogram(name + '_data', param, epoch)
+                # for name, param in self.model.named_parameters():  # 返回网络的
+                #     self.writer.add_histogram(name + '_grad', param.grad, epoch)
+                #     self.writer.add_histogram(name + '_data', param, epoch)
 
                 # test
                 if self.args.using_lp:
@@ -187,7 +180,6 @@ class Trainer(object):
                     for i, key in enumerate(metrics_results):
                         print(f"{key}: {metrics_results[key]:.4f}", end='\t')
                         self.writer.add_scalar(f"Metrics/{key}", metrics_results[key], global_step=epoch)
-
                         loss_list[epoch][key] = metrics_results[key]
                     print("\n")
 
@@ -198,6 +190,42 @@ class Trainer(object):
         self.writer.close()
         return loss_list
 
+    def pretrain(self, train_loader, class_num):
+
+        criterion = Loss(self.args.batch_size, class_num, self.args.temperature_f, self.args.temperature_l,
+                         self.args, self.device).to(self.device)
+
+        for epoch in range(self.pretrain_epochs):
+            self.model.train()
+            tot_loss = 0.
+
+            for step, (inputs, labels, index) in enumerate(train_loader):
+                for i, _ in enumerate(inputs):
+                    inputs[i] = inputs[i].to(self.device)
+                labels = labels.to(self.device)
+                outputs, hs, xrs, zs = self.model(inputs, labels)
+
+                loss_list = []
+                for v in range(self.model.view):
+                    for w in range(v + 1, self.model.view):
+                        loss_list.append(criterion.forward_feature(hs[v], hs[w]))
+                        # loss_list.append(criterion.forward_label(qs[v], qs[w]))
+                    # loss_list.append(mes(xs[v], xrs[v]))
+
+                loss = sum(loss_list)
+                self.opti.zero_grad()
+                loss.backward()
+                self.opti.step()
+                tot_loss += loss.item()
+
+                if epoch % 50 == 0 and step == 0:
+                    self.writer.add_scalar("Loss/CL Loss", loss.item(), global_step=epoch)
+                                    #     plot_embedding(hs[0], hs[1], labels)
+                #     self.writer.add_embedding(mat=hs[0], metadata=labels, global_step=epoch)
+                #     self.writer.add_embedding(mat=hs[1], metadata=labels, global_step=epoch)
+
+            print('Epoch {}'.format(epoch), 'Loss:{:.6f}'.format(tot_loss / len(train_loader)))
+        self.writer.close()
 
 if __name__ == '__main__':
     f1 = torch.randn(1000, 100)

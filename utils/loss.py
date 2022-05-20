@@ -67,10 +67,6 @@ class Loss(nn.Module):
         h = torch.cat((h_i, h_j), dim=0)
 
         sim = torch.matmul(h, h.T) / self.temperature_f
-
-        # sim_i_j = torch.diag(sim, h_i.shape[0])
-        # sim_j_i = torch.diag(sim, -h_i.shape[0])
-
         sim_i_j = torch.diag(sim, self.batch_size)
         sim_j_i = torch.diag(sim, -self.batch_size)
 

@@ -32,8 +32,8 @@ def run(device, args, save_dir, file_name):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    # if os.path.exists(save_name):
-    #     return
+    if os.path.exists(save_name):
+        return
 
     features, labels, idx_list = load_mat_data(os.path.join(args.DATA_ROOT, args.DATA_SET_NAME + '.mat'), True)
 
@@ -62,14 +62,15 @@ def run(device, args, save_dir, file_name):
         class_num = train_labels.shape[1]
         input_size = view_feature_dim_list
 
-        model = Network(num_view, input_size, args.high_feature_dim, args.embedding_dim, args.cluster_dim, class_num,
-                        device).to(device)
+        model = Network(num_view, input_size, args.high_feature_dim, args.latent_dim,
+                        args.embedding_dim, class_num, args, device).to(device)
+
         # init_network(model)
         # print(model)
 
-        init_graph = {}
-        for i in range(len(view_code_list)):
-            init_graph[i] = torch.zeros(args.batch_size, view_feature_dim_list[i]).to(device)
+        # init_graph = {}
+        # for i in range(len(view_code_list)):
+        #     init_graph[i] = torch.zeros(args.batch_size, view_feature_dim_list[i]).to(device)
 
         # init_labels = torch.zeros(args.batch_size, class_num)
         # writer.add_graph(model, [init_graph, init_labels])
@@ -79,6 +80,7 @@ def run(device, args, save_dir, file_name):
 
         # training
         trainer = Trainer(model, writer, args, device)
+        # trainer.pretrain(views_data_loader, class_num)
         loss_list = trainer.fit(views_data_loader, train_features, train_partial_labels, test_features, test_labels,
                                 class_num, fold)
 
@@ -126,27 +128,25 @@ if __name__ == '__main__':
 
     # lrs = [1e-2, 5e-2, 2e-3, 6e-3, 5e-3, 1e-4, 5e-4, 1e-5, 1e-6]
     # lrs = [5e-4, 5e-6, 6e-7, 3e-8, 6e-4, 6e-4, 3e-4, 5e-3, 5e-5]
-    lrs = [1e-3]
+    # lrs = [1e-3]
 
     # noise_rates = [0.3, 0.5, 0.7]
-    noise_rates = [0.7]
+    noise_rates = [0.0]
 
     # datanames = ['Emotions', 'Scene', 'Yeast', 'Pascal', 'Iaprtc12', 'Corel5k', 'Mirflickr', 'Espgame']
     # label_nums = [6, 6, 14, 20, 291, 260, 38, 268]
 
-    # datanames = ['Emotions', 'Yeast', 'Scene', 'Pascal', 'Mirflickr']
-    # label_nums = [6]
+    # datanames = ['Yeast', 'Corel5k']
+    # datanames = ['Pascal', 'Mirflickr']
+    # datanames = ['Iaprtc12', 'Emotions']
+    # datanames = ['Scene', 'Espgame']
 
-    # datanames = ['Iaprtc12', 'Corel5k', 'Espgame']
     # datanames = ['Emotions']
-    # label_nums = [300]
-
-    datanames = ['Emotions']
     # datanames = ['Scene']
     # datanames = ['Yeast']
     # datanames = ['Pascal']
     # datanames = ['Iaprtc12']
-    # datanames = ['Corel5k']
+    datanames = ['Corel5k']
     # datanames = ['Mirflickr']
     # datanames = ['Espgame']
 
@@ -162,30 +162,30 @@ if __name__ == '__main__':
 
     for i, dataname in enumerate(datanames):
         for p in noise_rates:
-            for lr in lrs:
+            # for lr in lrs:
 
                 # for eta in etas:
                 #     for zeta in zetas:
                 #         for alpha in alphas:
-                # for coef_kl in np.arange(0, 1, 0.1):
-                #     for coef_cl in np.arange(0, 1, 0.1):
+                # for coef_kl in np.arange(0, 1, 0.2):
+                #     for coef_cl in np.arange(0, 1, 0.2):
+                #         for coef_mi in np.arange(0, 1, 0.2):
 
-                        # for coef_cl in np.arange(0, 1, 0.1):
                         # for emb in param_grid['embedding_dim']:
                         #     for hi in param_grid['high_feature_dim']:
 
-                        args.DATA_SET_NAME = dataname
-                        args.noise_rate = p
-                        args.lr = lr
-                        # args.coef_kl = coef_kl
-                        # args.coef_cl = coef_cl
+                            args.DATA_SET_NAME = dataname
+                            args.noise_rate = p
+                            # args.lr = lr
+                            # args.coef_cl = coef_cl
+                            # args.coef_mi = coef_mi
 
-                        save_dir = f'results/{args.DATA_SET_NAME}/'
-                        save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-epochs{args.epochs}-p{args.noise_rate}-' \
-                                    f'hdim{args.high_feature_dim}-emd{args.embedding_dim}-clu{args.cluster_dim}-' \
-                                    f'coef_ml-{args.coef_ml}-coef_cl{args.coef_cl}.txt-coef_kl{args.coef_kl}.txt'
+                            save_dir = f'results/{args.DATA_SET_NAME}/'
+                            save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-pre_epochs{args.pretrain_epochs}-epochs{args.epochs}-p{args.noise_rate}-' \
+                                        f'hdim{args.high_feature_dim}-emd{args.embedding_dim}-' \
+                                        f'coef_ml-{args.coef_ml}-coef_cl{args.coef_cl}-coef_mi{args.coef_mi}.-txt'
 
-                        run(device, args, save_dir, save_name)
+                            run(device, args, save_dir, save_name)
 
                         # args.embedding_dim = emb
                         # args.high_feature_dim = hi
@@ -213,3 +213,4 @@ if __name__ == '__main__':
                 # args.high_feature_dim = random_params['high_feature_dim']
                 # args.embedding_dim = random_params['embedding_dim']
                 # args.common_embedding_dim = random_params['common_embedding_dim']
+
