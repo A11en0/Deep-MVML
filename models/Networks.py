@@ -7,6 +7,22 @@ from models.Cluster import ClusterAssignment
 from models.Discriminator import Discriminator
 
 
+class Encoder(nn.Module):
+    def __init__(self, input_dim, feature_dim):
+        super(Encoder, self).__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(input_dim, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Linear(256, feature_dim),
+            # nn.BatchNorm1d(128),
+            # nn.ReLU(),
+            # nn.Linear(128, feature_dim),
+        )
+
+    def forward(self, x):
+        return self.encoder(x)
+
 # class Encoder(nn.Module):
 #     def __init__(self, input_dim, feature_dim):
 #         super(Encoder, self).__init__()
@@ -43,21 +59,21 @@ from models.Discriminator import Discriminator
 #     def forward(self, x):
 #         return self.decoder(x)
 
-class Encoder(nn.Module):
-    def __init__(self, input_dim, feature_dim):
-        super(Encoder, self).__init__()
-        self.encoder = nn.Sequential(
-            nn.Linear(input_dim, 500),
-            nn.ReLU(),
-            nn.Linear(500, 500),
-            nn.ReLU(),
-            nn.Linear(500, 2000),
-            nn.ReLU(),
-            nn.Linear(2000, feature_dim),
-        )
-
-    def forward(self, x):
-        return self.encoder(x)
+# class Encoder(nn.Module):
+#     def __init__(self, input_dim, feature_dim):
+#         super(Encoder, self).__init__()
+#         self.encoder = nn.Sequential(
+#             nn.Linear(input_dim, 500),
+#             nn.ReLU(),
+#             nn.Linear(500, 500),
+#             nn.ReLU(),
+#             nn.Linear(500, 2000),
+#             nn.ReLU(),
+#             nn.Linear(2000, feature_dim),
+#         )
+#
+#     def forward(self, x):
+#         return self.encoder(x)
 
 
 class Decoder(nn.Module):
@@ -82,14 +98,14 @@ class Network(nn.Module):
         super(Network, self).__init__()
         self.args = args
         self.encoders = []
-        self.decoders = []
+        # self.decoders = []
         for v in range(num_view):
             self.encoders.append(Encoder(input_size[v], latent_dim).to(device))
-            self.decoders.append(Decoder(latent_dim, embedding_dim).to(device))
+            # self.decoders.append(Decoder(latent_dim, embedding_dim).to(device))
             # self.decoders.append(Decoder(latent_dim, embedding_dim).to(device))
 
         self.encoders = nn.ModuleList(self.encoders)
-        self.decoders = nn.ModuleList(self.decoders)
+        # self.decoders = nn.ModuleList(self.decoders)
 
         self.feature_contrastive_module = nn.Sequential(
             nn.Linear(latent_dim, high_feature_dim),
@@ -101,9 +117,9 @@ class Network(nn.Module):
         # )
 
         self.classifier = nn.Sequential(
-            nn.Linear(num_view * latent_dim, 256),
-            nn.Linear(256, 128),
-            nn.Linear(128, class_num),
+            nn.Linear(num_view * latent_dim, class_num),
+            # nn.Linear(256, 128),
+            # nn.Linear(128, class_num),
             # nn.Sigmoid()
         )
 
@@ -178,7 +194,6 @@ if __name__ == '__main__':
     f1 = torch.randn(1000, 20)
     f2 = torch.randn(1000, 20)
     features = {0: f1, 1: f2}
-
 
 
 

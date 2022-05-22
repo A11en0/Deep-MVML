@@ -80,6 +80,11 @@ class Trainer(object):
         # kl_div = nn.KLDivLoss(size_average=False)
         # kmeans = KMeans(n_clusters=class_num, n_init=20)
 
+        # fine-tune
+        for encoder in self.model.encoders.children():
+            for param in encoder.parameters():
+                param.requires_grad = False
+
         if not os.path.exists(self.model_save_dir):
             os.makedirs(self.model_save_dir)
 

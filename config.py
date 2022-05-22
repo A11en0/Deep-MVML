@@ -31,8 +31,8 @@ class Args:
         self.cuda = True
         self.workers = 0
         self.opt = 'adam'
-        self.lr = 3e-4  #
-        self.lr_pre = 3e-4  #
+        self.lr = 1e-3  #
+        self.lr_pre = 1e-3  #
         self.weight_decay = 1e-5  #
         self.noise_rate = 0.7
         self.noise_num = 3

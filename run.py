@@ -80,7 +80,7 @@ def run(device, args, save_dir, file_name):
 
         # training
         trainer = Trainer(model, writer, args, device)
-        # trainer.pretrain(views_data_loader, class_num)
+        trainer.pretrain(views_data_loader, class_num)
         loss_list = trainer.fit(views_data_loader, train_features, train_partial_labels, test_features, test_labels,
                                 class_num, fold)
 
@@ -183,7 +183,7 @@ if __name__ == '__main__':
                             save_dir = f'results/{args.DATA_SET_NAME}/'
                             save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-pre_epochs{args.pretrain_epochs}-epochs{args.epochs}-p{args.noise_rate}-' \
                                         f'hdim{args.high_feature_dim}-emd{args.embedding_dim}-' \
-                                        f'coef_ml-{args.coef_ml}-coef_cl{args.coef_cl}-coef_mi{args.coef_mi}.-txt'
+                                        f'coef_ml-{args.coef_ml}-coef_cl{args.coef_cl}-coef_mi{args.coef_mi}.txt'
 
                             run(device, args, save_dir, save_name)
 
