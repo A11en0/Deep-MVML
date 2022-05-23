@@ -80,8 +80,8 @@ def run(device, args, save_dir, file_name):
 
         # training
         trainer = Trainer(model, writer, args, device)
-        trainer.pretrain(views_data_loader, class_num)
-        loss_list = trainer.fit(views_data_loader, train_features, train_partial_labels, test_features, test_labels,
+        # trainer.pretrain(views_data_loader, class_num)
+        loss_list = trainer.fit(views_data_loader, train_features, train_labels, test_features, test_labels,
                                 class_num, fold)
 
         fold_list.append(loss_list)
@@ -142,11 +142,11 @@ if __name__ == '__main__':
     # datanames = ['Scene', 'Espgame']
 
     # datanames = ['Emotions']
-    # datanames = ['Scene']
+    datanames = ['Scene']
     # datanames = ['Yeast']
     # datanames = ['Pascal']
     # datanames = ['Iaprtc12']
-    datanames = ['Corel5k']
+    # datanames = ['Corel5k']
     # datanames = ['Mirflickr']
     # datanames = ['Espgame']
 
@@ -181,9 +181,9 @@ if __name__ == '__main__':
                             # args.coef_mi = coef_mi
 
                             save_dir = f'results/{args.DATA_SET_NAME}/'
-                            save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-pre_epochs{args.pretrain_epochs}-epochs{args.epochs}-p{args.noise_rate}-' \
+                            save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-epochs{args.epochs}-' \
                                         f'hdim{args.high_feature_dim}-emd{args.embedding_dim}-' \
-                                        f'coef_ml-{args.coef_ml}-coef_cl{args.coef_cl}-coef_mi{args.coef_mi}.txt'
+                                        f'coef_ml-{args.coef_ml}-coef_cl{args.coef_cl}-coef_rec{args.coef_rec}-marginloss.txt'
 
                             run(device, args, save_dir, save_name)
 

@@ -1,3 +1,5 @@
+import math
+
 import torch
 import numpy as np
 from torch import nn
@@ -5,6 +7,7 @@ from torch.nn.functional import normalize
 
 from models.Cluster import ClusterAssignment
 from models.Discriminator import Discriminator
+from models.GNNs import GIN, FDModel
 
 
 class Encoder(nn.Module):
@@ -97,25 +100,42 @@ class Network(nn.Module):
                  embedding_dim, class_num, args, device):
         super(Network, self).__init__()
         self.args = args
+        self.view = num_view
         self.encoders = []
         # self.decoders = []
+
+        # View-Specific Encoder
         for v in range(num_view):
             self.encoders.append(Encoder(input_size[v], latent_dim).to(device))
             # self.decoders.append(Decoder(latent_dim, embedding_dim).to(device))
-            # self.decoders.append(Decoder(latent_dim, embedding_dim).to(device))
 
+        # Encoder lists
         self.encoders = nn.ModuleList(self.encoders)
         # self.decoders = nn.ModuleList(self.decoders)
 
-        self.feature_contrastive_module = nn.Sequential(
-            nn.Linear(latent_dim, high_feature_dim),
-        )
+        # self.feature_contrastive_module = nn.Sequential(
+        #     nn.Linear(latent_dim, high_feature_dim),
+        # )
 
         # self.label_contrastive_module = nn.Sequential(
         #     nn.Linear(feature_dim, class_num),
         #     nn.Softmax(dim=1)
         # )
 
+        # Label semantic encoding module
+        self.label_embedding = nn.Parameter(torch.eye(class_num),
+                                            requires_grad=False)
+        self.label_adj = nn.Parameter(torch.eye(class_num),
+                                      requires_grad=False)
+        self.GIN_encoder = GIN(2, class_num, args.class_emb_dim,
+                              [math.ceil(args.class_emb_dim / 2)])
+
+        # Semantic-guided feature-disentangling module
+        self.FD_model = FDModel(latent_dim, args.class_emb_dim,
+                                512, embedding_dim, args.in_layers, 1,
+                                False, 'leaky_relu', 0.1)
+
+        # Classification
         self.classifier = nn.Sequential(
             nn.Linear(num_view * latent_dim, class_num),
             # nn.Linear(256, 128),
@@ -123,15 +143,37 @@ class Network(nn.Module):
             # nn.Sigmoid()
         )
 
-        self.view = num_view
-
-        # self.assignment = ClusterAssignment(
-        #     cluster_number=class_num, embedding_dimension=cluster_dim
-        # )
-
-        # self.disc = Discriminator(embedding_dim*2)
+        # Classifier
+        self.cls_conv = nn.Conv1d(class_num, class_num, embedding_dim*num_view, groups=class_num)
 
     def forward(self, xs, labels):
+        xrs = []
+        hs = []
+        # Generating semantic label embeddings via label semantic encoding module
+        label_embedding = self.GIN_encoder(self.label_embedding, self.label_adj)
+
+        for v in range(self.view):
+            # Generating label-specific features via semantic-guided feature-disentangling module
+            x = xs[v]
+            z = self.encoders[v](x)
+            z_label = self.FD_model(z, label_embedding)
+            # h = normalize(self.feature_contrastive_module(z_label), dim=1)
+            # hs.append(h)
+            xrs.append(z_label)
+
+        # concat all view-specific features
+        X = torch.cat(xrs, dim=2)
+
+        # Classification
+        output = self.cls_conv(X).squeeze(2)
+
+        # Classification
+        # output = self.classifier(X, dim=1)
+        # output = self.cls_conv(X).squeeze(2)
+
+        return output, label_embedding, hs
+
+    def forward__(self, xs, labels):
         hs = []
         qs = []
         xrs = []
