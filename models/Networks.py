@@ -5,8 +5,6 @@ import numpy as np
 from torch import nn
 from torch.nn.functional import normalize
 
-from models.Cluster import ClusterAssignment
-from models.Discriminator import Discriminator
 from models.GNNs import GIN, FDModel
 
 
@@ -113,9 +111,9 @@ class Network(nn.Module):
         self.encoders = nn.ModuleList(self.encoders)
         # self.decoders = nn.ModuleList(self.decoders)
 
-        # self.feature_contrastive_module = nn.Sequential(
-        #     nn.Linear(latent_dim, high_feature_dim),
-        # )
+        self.feature_contrastive_module = nn.Sequential(
+            nn.Linear(latent_dim, high_feature_dim),
+        )
 
         # self.label_contrastive_module = nn.Sequential(
         #     nn.Linear(feature_dim, class_num),
@@ -144,11 +142,12 @@ class Network(nn.Module):
         )
 
         # Classifier
-        self.cls_conv = nn.Conv1d(class_num, class_num, embedding_dim*num_view, groups=class_num)
+        self.cls_conv = nn.Conv1d(class_num, class_num, embedding_dim * num_view, groups=class_num)
 
     def forward(self, xs, labels):
         xrs = []
         hs = []
+
         # Generating semantic label embeddings via label semantic encoding module
         label_embedding = self.GIN_encoder(self.label_embedding, self.label_adj)
 
@@ -157,8 +156,9 @@ class Network(nn.Module):
             x = xs[v]
             z = self.encoders[v](x)
             z_label = self.FD_model(z, label_embedding)
-            # h = normalize(self.feature_contrastive_module(z_label), dim=1)
-            # hs.append(h)
+            h = normalize(self.feature_contrastive_module(z_label), dim=1)
+            h = torch.mean(h, dim=1)
+            hs.append(h)
             xrs.append(z_label)
 
         # concat all view-specific features
@@ -167,7 +167,6 @@ class Network(nn.Module):
         # Classification
         output = self.cls_conv(X).squeeze(2)
 
-        # Classification
         # output = self.classifier(X, dim=1)
         # output = self.cls_conv(X).squeeze(2)
 

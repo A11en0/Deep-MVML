@@ -75,7 +75,8 @@ class Trainer(object):
         criterion = nn.MultiLabelSoftMarginLoss()
         # criterion = F.binary_cross_entropy_with_logits()
         emb_criterion = LinkPredictionLoss_cosine()
-
+        CL = Loss(self.args.batch_size, class_num, self.args.temperature_f, self.args.temperature_l,
+                         self.args, self.device).to(self.device)
 
         if not os.path.exists(self.model_save_dir):
             os.makedirs(self.model_save_dir)
@@ -98,6 +99,12 @@ class Trainer(object):
                 labels = labels.to(self.device)
                 output, label_emb, hs = self.model(inputs, labels)
 
+                # classification loss
+                ml_loss = criterion(output, labels)
+
+                # label graph reconstruction loss
+                rec_loss = emb_criterion(label_emb, self.adj)
+
                 # contrastive loss
                 cl_loss_list = []
                 for v in range(self.model.view):
@@ -105,28 +112,25 @@ class Trainer(object):
                         cl_loss_list.append(CL.info_nce_loss(hs[v], hs[w]))
                 cl_loss = sum(cl_loss_list) / len(cl_loss_list)
 
-                # classification loss
-                ml_loss = criterion(output, labels)
-                # label graph reconstruction loss
-                rec_loss = emb_criterion(label_emb, self.adj)
+                loss = self.args.coef_ml * ml_loss + self.args.coef_rec * rec_loss + self.args.coef_cl*cl_loss
 
-                loss = self.args.coef_ml * ml_loss + self.args.coef_rec * rec_loss
-
-                print_str = f'Epoch: {epoch}\t Loss: {loss.item():.4f}\t Rec Loss: {rec_loss.item():.4f}'
+                print_str = f'Epoch: {epoch}\t Loss: {loss.item():.4f}\t CL Loss: {cl_loss.item():.4f}\t Rec Loss: {rec_loss.item():.4f}'
 
                 # show loss info
                 if epoch % self.show_epoch == 0 and step == 0:
                     print(print_str)
                     self.writer.add_scalar("Loss/Loss", loss.item(), global_step=epoch)
+                    self.writer.add_scalar("Loss/ML Loss", ml_loss.item(), global_step=epoch)
+                    self.writer.add_scalar("Loss/CL Loss", cl_loss.item(), global_step=epoch)
                     self.writer.add_scalar("Loss/Rec Loss", rec_loss.item(), global_step=epoch)
-
-                    # self.writer.add_scalar("Loss/ML Loss", ml_loss.item(), global_step=epoch)
-                    # self.writer.add_scalar("Loss/CL Loss", cl_loss.item(), global_step=epoch)
-                    # self.writer.add_scalar("Loss/MI Loss", info_loss.item(), global_step=epoch)
-                    # self.writer.add_embedding(mat=hs[1], metadata=labels, global_step=epoch)
-                    # plot_embedding(hs[0], hs[1], labels)
                     epoch_loss = dict()
                     loss_list.append(epoch_loss)
+
+                    # self.writer.add_scalar("Loss/MI Loss", info_loss.item(), global_step=epoch)
+                    # self.writer.add_embedding(mat=hs[1], metadata=labels, global_step=epoch)
+
+                if epoch % 50 == 0 and step == 0 and self.args.plot:
+                    plot_embedding(hs[0], hs[1], labels)
 
                 self.opti.zero_grad()
                 loss.backward()

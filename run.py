@@ -9,8 +9,6 @@ from train import test, Trainer
 from utils.common_tools import split_data_set_by_idx, ViewsDataset, load_mat_data, init_random_seed, init_network
 from torch.utils.tensorboard import SummaryWriter
 
-# writer = SummaryWriter(log_dir="runs/")
-
 
 def run(device, args, save_dir, file_name):
     print('*' * 30)
@@ -68,12 +66,12 @@ def run(device, args, save_dir, file_name):
         # init_network(model)
         # print(model)
 
-        # init_graph = {}
-        # for i in range(len(view_code_list)):
-        #     init_graph[i] = torch.zeros(args.batch_size, view_feature_dim_list[i]).to(device)
+        init_graph = {}
+        for i in range(len(view_code_list)):
+            init_graph[i] = torch.zeros(args.batch_size, view_feature_dim_list[i]).to(device)
 
-        # init_labels = torch.zeros(args.batch_size, class_num)
-        # writer.add_graph(model, [init_graph, init_labels])
+        init_labels = torch.zeros(args.batch_size, class_num)
+        writer.add_graph(model, [init_graph, init_labels])
 
         # Parallel
         # model = torch.nn.DataParallel(model)
@@ -141,8 +139,8 @@ if __name__ == '__main__':
     # datanames = ['Iaprtc12', 'Emotions']
     # datanames = ['Scene', 'Espgame']
 
-    # datanames = ['Emotions']
-    datanames = ['Scene']
+    datanames = ['Emotions']
+    # datanames = ['Scene']
     # datanames = ['Yeast']
     # datanames = ['Pascal']
     # datanames = ['Iaprtc12']
@@ -161,9 +159,7 @@ if __name__ == '__main__':
     # alphas = [0.1, 1, 10]
 
     for i, dataname in enumerate(datanames):
-        for p in noise_rates:
-            # for lr in lrs:
-
+            for coef_cl in np.arange(0, 1, 0.1):
                 # for eta in etas:
                 #     for zeta in zetas:
                 #         for alpha in alphas:
@@ -175,15 +171,12 @@ if __name__ == '__main__':
                         #     for hi in param_grid['high_feature_dim']:
 
                             args.DATA_SET_NAME = dataname
-                            args.noise_rate = p
-                            # args.lr = lr
-                            # args.coef_cl = coef_cl
-                            # args.coef_mi = coef_mi
+                            args.coef_cl = coef_cl
 
                             save_dir = f'results/{args.DATA_SET_NAME}/'
                             save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-epochs{args.epochs}-' \
                                         f'hdim{args.high_feature_dim}-emd{args.embedding_dim}-' \
-                                        f'coef_ml-{args.coef_ml}-coef_cl{args.coef_cl}-coef_rec{args.coef_rec}-marginloss.txt'
+                                        f'coef_ml-{args.coef_ml}-coef_cl{args.coef_cl}-coef_rec{args.coef_rec}.-txt-'
 
                             run(device, args, save_dir, save_name)
 
@@ -206,11 +199,9 @@ if __name__ == '__main__':
                     #                             f'.txt-cl-ml'
                     #                 run(device, args, save_dir, save_name)
 
-
                 # 随机搜索
                 # random_params = {k: random.sample(v, 1)[0] for k, v in param_grid.items()}
                 # args.latent_dim = random_params['latent_dim']
                 # args.high_feature_dim = random_params['high_feature_dim']
                 # args.embedding_dim = random_params['embedding_dim']
                 # args.common_embedding_dim = random_params['common_embedding_dim']
-

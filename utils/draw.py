@@ -7,6 +7,7 @@ import seaborn as sns
 import pandas as pd
 import numpy as np
 
+
 def plot_embedding(X1, X2, y):
     time_start = time.time()
     df1 = pd.DataFrame(X1)
@@ -21,7 +22,7 @@ def plot_embedding(X1, X2, y):
     df_subset2 = df2.copy()
     # df_subset_y = df_y.copy()
 
-    tsne = TSNE(n_components=2, verbose=1, perplexity=10, n_iter=300)
+    tsne = TSNE(n_components=2, verbose=0, perplexity=30, n_iter=300)
     tsne_results1 = tsne.fit_transform(df1.values)
     tsne_results2 = tsne.fit_transform(df2.values)
     print('t-SNE done! Time elapsed: {} seconds'.format(time.time()-time_start))
