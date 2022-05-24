@@ -147,10 +147,9 @@ def ParameterSearch():
     }
 
     for i, dataname in enumerate(datanames):
-            for coef_cl in np.arange(0, 1, 0.1):
-                        # for emb in param_grid['embedding_dim']:
-                        #     for hi in param_grid['high_feature_dim']:
-
+            for coef_cl in np.arange(0.001, 0.01, 0.001):
+                # for emb in param_grid['embedding_dim']:
+                #     for hi in param_grid['high_feature_dim']:
                             args.DATA_SET_NAME = dataname
                             args.coef_cl = coef_cl
 
@@ -170,13 +169,14 @@ def ParameterSearch():
 
 
 if __name__ == '__main__':
-    args = Args()
-    device = torch.device("cuda") if args.cuda else torch.device("cpu")
+    # args = Args()
+    # device = torch.device("cuda") if args.cuda else torch.device("cpu")
+    #
+    # save_dir = f'results/{args.DATA_SET_NAME}/'
+    # save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-epochs{args.epochs}-' \
+    #             f'hdim{args.high_feature_dim}-emd{args.embedding_dim}-' \
+    #             f'coef_ml-{args.coef_ml}-coef_cl{args.coef_cl}-coef_rec{args.coef_rec}.-txt-'
+    #
+    # run(device, args, save_dir, save_name)
 
-    save_dir = f'results/{args.DATA_SET_NAME}/'
-    save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-epochs{args.epochs}-' \
-                f'hdim{args.high_feature_dim}-emd{args.embedding_dim}-' \
-                f'coef_ml-{args.coef_ml}-coef_cl{args.coef_cl}-coef_rec{args.coef_rec}.-txt-'
-
-    run(device, args, save_dir, save_name)
-
+    ParameterSearch()

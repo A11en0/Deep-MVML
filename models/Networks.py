@@ -1,7 +1,5 @@
 import math
-
 import torch
-import numpy as np
 from torch import nn
 from torch.nn.functional import normalize
 

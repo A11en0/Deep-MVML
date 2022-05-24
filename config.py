@@ -8,7 +8,7 @@ class Args:
     def __init__(self):
         self.DATA_ROOT = './Datasets'
         self.DATA_SET_NAME = 'Emotions'
-        self.epochs = 100
+        self.epochs = 200
         self.pretrain_epochs = 200
         self.show_epoch = 1
         # self.epoch_used_for_final_result = 4
@@ -27,7 +27,7 @@ class Args:
         self.lr_pre = 1e-3  #
         self.weight_decay = 1e-5  #
 
-        self.temperature_f = 0.05
+        self.temperature_f = 0.5
         self.temperature_l = 1.0
 
         self.latent_dim = 64  # 512
@@ -37,7 +37,7 @@ class Args:
         # self.cluster_dim = 256  # 256
 
         self.coef_ml = 1.0
-        self.coef_cl = 0.5
+        self.coef_cl = 0.02
         self.coef_rec = 0.5
 
         self.noise_rate = 0.0

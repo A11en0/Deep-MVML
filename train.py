@@ -75,6 +75,8 @@ class Trainer(object):
         criterion = nn.MultiLabelSoftMarginLoss()
         # criterion = F.binary_cross_entropy_with_logits()
         emb_criterion = LinkPredictionLoss_cosine()
+
+        # Contrastive Loss
         CL = Loss(self.args.batch_size, class_num, self.args.temperature_f, self.args.temperature_l,
                          self.args, self.device).to(self.device)
 
@@ -93,7 +95,6 @@ class Trainer(object):
             self.model.train()
 
             for step, (inputs, labels, index) in enumerate(train_loader):
-
                 for i, _ in enumerate(inputs):
                     inputs[i] = inputs[i].to(self.device)
                 labels = labels.to(self.device)
@@ -114,7 +115,7 @@ class Trainer(object):
 
                 loss = self.args.coef_ml * ml_loss + self.args.coef_rec * rec_loss + self.args.coef_cl*cl_loss
 
-                print_str = f'Epoch: {epoch}\t Loss: {loss.item():.4f}\t CL Loss: {cl_loss.item():.4f}\t Rec Loss: {rec_loss.item():.4f}'
+                print_str = f'Epoch: {epoch}\t Loss: {loss.item():.4f}\t ML Loss: {ml_loss.item():.4f}\t CL Loss: {cl_loss.item():.4f}\t Rec Loss: {rec_loss.item():.4f}'
 
                 # show loss info
                 if epoch % self.show_epoch == 0 and step == 0:
@@ -169,42 +170,43 @@ class Trainer(object):
         adj = (adj + adj.t()) * 0.5
         return adj
 
-    def pretrain(self, train_loader, class_num):
+    # def pretrain(self, train_loader, class_num):
+    #
+    #     criterion = Loss(self.args.batch_size, class_num, self.args.temperature_f, self.args.temperature_l,
+    #                      self.args, self.device).to(self.device)
+    #
+    #     for epoch in range(self.pretrain_epochs):
+    #         self.model.train()
+    #         tot_loss = 0.
+    #
+    #         for step, (inputs, labels, index) in enumerate(train_loader):
+    #             for i, _ in enumerate(inputs):
+    #                 inputs[i] = inputs[i].to(self.device)
+    #             labels = labels.to(self.device)
+    #             outputs, hs, xrs, zs = self.model(inputs, labels)
+    #
+    #             loss_list = []
+    #             for v in range(self.model.view):
+    #                 for w in range(v + 1, self.model.view):
+    #                     loss_list.append(criterion.forward_feature(hs[v], hs[w]))
+    #                     # loss_list.append(criterion.forward_label(qs[v], qs[w]))
+    #                 # loss_list.append(mes(xs[v], xrs[v]))
+    #
+    #             loss = sum(loss_list)
+    #             self.opti.zero_grad()
+    #             loss.backward()
+    #             self.opti.step()
+    #             tot_loss += loss.item()
+    #
+    #             if epoch % 50 == 0 and step == 0:
+    #                 self.writer.add_scalar("Loss/CL Loss", loss.item(), global_step=epoch)
+    #                                 #     plot_embedding(hs[0], hs[1], labels)
+    #             #     self.writer.add_embedding(mat=hs[0], metadata=labels, global_step=epoch)
+    #             #     self.writer.add_embedding(mat=hs[1], metadata=labels, global_step=epoch)
+    #
+    #         print('Epoch {}'.format(epoch), 'Loss:{:.6f}'.format(tot_loss / len(train_loader)))
+    #     self.writer.close()
 
-        criterion = Loss(self.args.batch_size, class_num, self.args.temperature_f, self.args.temperature_l,
-                         self.args, self.device).to(self.device)
-
-        for epoch in range(self.pretrain_epochs):
-            self.model.train()
-            tot_loss = 0.
-
-            for step, (inputs, labels, index) in enumerate(train_loader):
-                for i, _ in enumerate(inputs):
-                    inputs[i] = inputs[i].to(self.device)
-                labels = labels.to(self.device)
-                outputs, hs, xrs, zs = self.model(inputs, labels)
-
-                loss_list = []
-                for v in range(self.model.view):
-                    for w in range(v + 1, self.model.view):
-                        loss_list.append(criterion.forward_feature(hs[v], hs[w]))
-                        # loss_list.append(criterion.forward_label(qs[v], qs[w]))
-                    # loss_list.append(mes(xs[v], xrs[v]))
-
-                loss = sum(loss_list)
-                self.opti.zero_grad()
-                loss.backward()
-                self.opti.step()
-                tot_loss += loss.item()
-
-                if epoch % 50 == 0 and step == 0:
-                    self.writer.add_scalar("Loss/CL Loss", loss.item(), global_step=epoch)
-                                    #     plot_embedding(hs[0], hs[1], labels)
-                #     self.writer.add_embedding(mat=hs[0], metadata=labels, global_step=epoch)
-                #     self.writer.add_embedding(mat=hs[1], metadata=labels, global_step=epoch)
-
-            print('Epoch {}'.format(epoch), 'Loss:{:.6f}'.format(tot_loss / len(train_loader)))
-        self.writer.close()
 
 if __name__ == '__main__':
     f1 = torch.randn(1000, 100)
