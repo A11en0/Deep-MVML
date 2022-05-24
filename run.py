@@ -118,21 +118,13 @@ def run(device, args, save_dir, file_name):
         f.write(str(_index[0]))
 
 
-if __name__ == '__main__':
+def ParameterSearch():
     args = Args()
 
     device = torch.device("cuda") if args.cuda else torch.device("cpu")
     # device = 'cpu'
 
     # lrs = [1e-2, 5e-2, 2e-3, 6e-3, 5e-3, 1e-4, 5e-4, 1e-5, 1e-6]
-    # lrs = [5e-4, 5e-6, 6e-7, 3e-8, 6e-4, 6e-4, 3e-4, 5e-3, 5e-5]
-    # lrs = [1e-3]
-
-    # noise_rates = [0.3, 0.5, 0.7]
-    noise_rates = [0.0]
-
-    # datanames = ['Emotions', 'Scene', 'Yeast', 'Pascal', 'Iaprtc12', 'Corel5k', 'Mirflickr', 'Espgame']
-    # label_nums = [6, 6, 14, 20, 291, 260, 38, 268]
 
     # datanames = ['Yeast', 'Corel5k']
     # datanames = ['Pascal', 'Mirflickr']
@@ -154,19 +146,8 @@ if __name__ == '__main__':
         'embedding_dim': [64, 128, 256, 512],
     }
 
-    # etas = [0.1, 1e-2, 1e-3, 1e-4]
-    # zetas = [0.1, 1e-2, 1e-3]
-    # alphas = [0.1, 1, 10]
-
     for i, dataname in enumerate(datanames):
             for coef_cl in np.arange(0, 1, 0.1):
-                # for eta in etas:
-                #     for zeta in zetas:
-                #         for alpha in alphas:
-                # for coef_kl in np.arange(0, 1, 0.2):
-                #     for coef_cl in np.arange(0, 1, 0.2):
-                #         for coef_mi in np.arange(0, 1, 0.2):
-
                         # for emb in param_grid['embedding_dim']:
                         #     for hi in param_grid['high_feature_dim']:
 
@@ -180,28 +161,22 @@ if __name__ == '__main__':
 
                             run(device, args, save_dir, save_name)
 
-                        # args.embedding_dim = emb
-                        # args.high_feature_dim = hi
-                        # args.coef_cl = coef_cl
-
-                    # args.latent_dim = label_nums[i]
-                    #     # Grid Search
-                    #     for lat in param_grid['latent_dim']:
-                    #         for hi in param_grid['high_feature_dim']:
-                    #             for emd in param_grid['embedding_dim']:
-                    #                 args.latent_dim = lat
-                    #                 args.high_feature_dim = hi
-                    #                 args.embedding_dim = emd
-                    #
-                    #                 save_dir = f'results/{dataname}/'
-                    #                 save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-p{args.noise_rate}-r{args.noise_num}-' \
-                    #                             f'lat{args.latent_dim}-hdim{args.high_feature_dim}-emd{args.embedding_dim}' \
-                    #                             f'.txt-cl-ml'
-                    #                 run(device, args, save_dir, save_name)
-
                 # 随机搜索
                 # random_params = {k: random.sample(v, 1)[0] for k, v in param_grid.items()}
                 # args.latent_dim = random_params['latent_dim']
                 # args.high_feature_dim = random_params['high_feature_dim']
                 # args.embedding_dim = random_params['embedding_dim']
                 # args.common_embedding_dim = random_params['common_embedding_dim']
+
+
+if __name__ == '__main__':
+    args = Args()
+    device = torch.device("cuda") if args.cuda else torch.device("cpu")
+
+    save_dir = f'results/{args.DATA_SET_NAME}/'
+    save_name = f'{args.DATA_SET_NAME}-lr{args.lr}-epochs{args.epochs}-' \
+                f'hdim{args.high_feature_dim}-emd{args.embedding_dim}-' \
+                f'coef_ml-{args.coef_ml}-coef_cl{args.coef_cl}-coef_rec{args.coef_rec}.-txt-'
+
+    run(device, args, save_dir, save_name)
+
