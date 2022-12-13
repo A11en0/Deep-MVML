@@ -1,5 +1,5 @@
 # Deep-MVML
-A deep learning based multi-view multi-label learning baseline implement with PyTorch.
+A deep learning based multi-view multi-label learning baseline implemented with PyTorch.
 
 # Sample Dataset
 We use mirflickr as our running example since it is commonly used and has a moderate size. Dataset location: data/mirflickr
